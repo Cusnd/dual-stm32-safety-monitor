@@ -162,5 +162,3 @@ K2 long press cycles threshold profiles.
 ## Notes
 
 - MQ sensor values are raw ADC readings and need calibration for real ppm measurement.
-- W25Q64 logging is optional; the monitor automatically continues if no valid chip is detected.
-- The project is intended as an embedded systems final assignment and demonstration platform.
