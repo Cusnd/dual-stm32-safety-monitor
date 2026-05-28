@@ -1,0 +1,74 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "default",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+		    "toolchainFile": "${sourceDir}/cmake/gcc-arm-none-eabi.cmake",
+            "cacheVariables": {
+            }
+        },
+        {
+            "name": "Debug",
+            "displayName": "Default monitor debug image",
+            "description": "Builds the default role from CMakeLists.txt, currently MONITOR.",
+            "inherits": "default",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "SensorDebug",
+            "displayName": "Board A sensor node",
+            "description": "Compiles APP_NODE_ROLE=SENSOR and outputs Fire_F103_sensor.* for the acquisition board.",
+            "inherits": "default",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "APP_NODE_ROLE": "SENSOR"
+            }
+        },
+        {
+            "name": "MonitorDebug",
+            "displayName": "Board B monitor node",
+            "description": "Compiles APP_NODE_ROLE=MONITOR and outputs Fire_F103_monitor.* for OLED, alarm, buttons, and flash logging.",
+            "inherits": "default",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "APP_NODE_ROLE": "MONITOR"
+            }
+        },
+        {
+            "name": "Release",
+            "displayName": "Release build",
+            "description": "Generic release preset; use SensorDebug or MonitorDebug for the two-board demo images.",
+            "inherits": "default",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "Debug",
+            "displayName": "Build default monitor debug image",
+            "configurePreset": "Debug"
+        },
+        {
+            "name": "SensorDebug",
+            "displayName": "Build board A sensor image",
+            "configurePreset": "SensorDebug"
+        },
+        {
+            "name": "MonitorDebug",
+            "displayName": "Build board B monitor image",
+            "configurePreset": "MonitorDebug"
+        },
+        {
+            "name": "Release",
+            "displayName": "Build release image",
+            "configurePreset": "Release"
+        }
+    ]
+}
