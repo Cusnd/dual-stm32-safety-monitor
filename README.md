@@ -2,6 +2,8 @@
 
 > A two-node STM32F103C8T6 environmental safety monitor: one board samples sensors, the other displays data and raises local alarms.
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 ![STM32](https://img.shields.io/badge/MCU-STM32F103C8T6-03234B?style=flat-square)
 ![C](https://img.shields.io/badge/language-C11-blue?style=flat-square)
 ![CMake](https://img.shields.io/badge/build-CMake%20%2B%20Ninja-064F8C?style=flat-square)
