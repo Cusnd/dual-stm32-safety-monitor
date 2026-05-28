@@ -67,6 +67,12 @@ flowchart LR
 
 详细接线请看 [WIRING.md](WIRING.md)。
 
+## 配套文档
+
+- [WIRING.md](WIRING.md)：硬件接线说明。
+- [FUNCTION_GUIDE.md](FUNCTION_GUIDE.md)：面向初学者的中英双语函数说明。
+- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)：中英双语项目结构和修改入口说明。
+
 ## 固件镜像
 
 同一个源码入口 [Core/Src/main.c](Core/Src/main.c) 会编译出两个不同固件：
@@ -142,6 +148,8 @@ K2 长按切换阈值档位。
 ├── CMakeLists.txt           顶层固件构建脚本
 ├── CMakePresets.json        SENSOR/MONITOR 构建预设
 ├── WIRING.md                硬件接线说明
+├── FUNCTION_GUIDE.md        中英双语函数说明
+├── PROJECT_STRUCTURE.md     中英双语项目结构说明
 ├── README.md                英文原始说明
 ├── README.zh-CN.md          中文说明
 └── assets/                  本地资料/图片，已在 .gitignore 中忽略

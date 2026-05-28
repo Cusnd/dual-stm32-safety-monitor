@@ -50,12 +50,16 @@ void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  /* The board RGB LEDs are active-low, so SET keeps them off at boot. */
+  /* The board RGB LEDs are active-low, so SET keeps them off at boot.
+   * 板载 RGB LED 低电平点亮，因此上电时先写 SET 让它们保持熄灭。
+   */
   HAL_GPIO_WritePin(GPIOA, LED_R_Pin|LED_G_Pin|LED_B_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : KEY2_Pin */
   /* K1/K2 use external pull-down resistors on the core board and go high when
-     pressed, matching the monitor button logic in main.c. */
+     pressed, matching the monitor button logic in main.c.
+     K1/K2 在核心板上使用外部下拉，按下后变为高电平，与 main.c 中的按键
+     判断逻辑一致。 */
   GPIO_InitStruct.Pin = KEY2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLDOWN;

@@ -69,6 +69,12 @@ Core module list:
 
 Full wiring notes are in [WIRING.md](WIRING.md).
 
+## Documentation
+
+- [WIRING.md](WIRING.md): hardware wiring guide.
+- [FUNCTION_GUIDE.md](FUNCTION_GUIDE.md): bilingual beginner guide to the main firmware functions.
+- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md): bilingual repository layout and modification guide.
+
 ## Firmware Images
 
 The same source file, [Core/Src/main.c](Core/Src/main.c), is compiled into two images:
@@ -144,7 +150,10 @@ K2 long press cycles threshold profiles.
 ├── CMakeLists.txt           Top-level firmware build script
 ├── CMakePresets.json        Sensor/monitor build presets
 ├── WIRING.md                Hardware wiring guide
+├── FUNCTION_GUIDE.md        Bilingual beginner function guide
+├── PROJECT_STRUCTURE.md     Bilingual repository structure guide
 ├── README.md                This file
+├── README.zh-CN.md          Chinese README
 └── assets/                  Local notes/images, intentionally ignored
 ```
 
