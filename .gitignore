@@ -1,7 +1,7 @@
 assets/
-Code/build/
-Code/.idea/
-Code/*.su
-Code/MDK-ARM/Fire_F103/
+build/
+.idea/
+*.su
+MDK-ARM/Fire_F103/
 *.bak
 *.tmp

@@ -69,12 +69,12 @@ Full wiring notes are in [WIRING.md](WIRING.md).
 
 ## Firmware Images
 
-The same source file, [Code/Core/Src/main.c](Code/Core/Src/main.c), is compiled into two images:
+The same source file, [Core/Src/main.c](Core/Src/main.c), is compiled into two images:
 
 | Preset | Output | Burn to |
 |---|---|---|
-| `SensorDebug` | `Code/build/SensorDebug/Fire_F103_sensor.hex` | Board A |
-| `MonitorDebug` | `Code/build/MonitorDebug/Fire_F103_monitor.hex` | Board B |
+| `SensorDebug` | `build/SensorDebug/Fire_F103_sensor.hex` | Board A |
+| `MonitorDebug` | `build/MonitorDebug/Fire_F103_monitor.hex` | Board B |
 
 ## Build
 
@@ -88,8 +88,6 @@ Requirements:
 Build both nodes:
 
 ```powershell
-cd Code
-
 cmake --preset SensorDebug
 cmake --build --preset SensorDebug
 
@@ -136,13 +134,13 @@ K2 long press cycles threshold profiles.
 
 ```text
 .
-├── Code/                    STM32 firmware project
-│   ├── Core/                Application and generated STM32 source
-│   ├── Drivers/             CMSIS and STM32F1 HAL drivers
-│   ├── cmake/               Toolchain and CubeMX CMake glue
-│   ├── Fire_F103.ioc        CubeMX pin/peripheral reference
-│   ├── CMakeLists.txt
-│   └── CMakePresets.json
+├── Core/                    Application and generated STM32 source
+├── Drivers/                 CMSIS and STM32F1 HAL drivers
+├── cmake/                   Toolchain and CubeMX CMake glue
+├── MDK-ARM/                 Keil uVision project files
+├── Fire_F103.ioc            CubeMX pin/peripheral reference
+├── CMakeLists.txt           Top-level firmware build script
+├── CMakePresets.json        Sensor/monitor build presets
 ├── WIRING.md                Hardware wiring guide
 ├── README.md                This file
 └── assets/                  Local notes/images, intentionally ignored
