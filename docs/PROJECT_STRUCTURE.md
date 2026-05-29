@@ -1,6 +1,6 @@
 # Project Structure / 项目结构
 
-[English README](README.md) | [中文 README](README.zh-CN.md) | [Function Guide / 函数说明](FUNCTION_GUIDE.md) | [Detailed Design / 详细设计](FUNCTION_DESIGN_WALKTHROUGH.md)
+[English README](../README.md) | [中文 README](../README.zh-CN.md) | [Function Guide / 函数说明](FUNCTION_GUIDE.md) | [Detailed Design / 详细设计](FUNCTION_DESIGN_WALKTHROUGH.md)
 
 This document explains how the repository is organized and where beginners should make changes.  
 本文档说明仓库目录结构，以及初学者修改功能时应该从哪里入手。
@@ -17,12 +17,12 @@ This document explains how the repository is organized and where beginners shoul
 ├── CMakeLists.txt           Top-level CMake build script
 ├── CMakePresets.json        Sensor/monitor build presets
 ├── WIRING.md                Hardware wiring guide
-├── FUNCTION_GUIDE.md        Beginner function explanation
-├── FUNCTION_DESIGN_WALKTHROUGH.md
-│                            Detailed function design walkthrough
-├── PROJECT_STRUCTURE.md     This structure document
 ├── README.md                English project README
 ├── README.zh-CN.md          Chinese project README
+├── docs/                    Supplementary project documentation
+│   ├── FUNCTION_GUIDE.md
+│   ├── FUNCTION_DESIGN_WALKTHROUGH.md
+│   └── PROJECT_STRUCTURE.md
 └── assets/                  Local reference files, ignored by Git
 ```
 
@@ -36,12 +36,12 @@ This document explains how the repository is organized and where beginners shoul
 ├── CMakeLists.txt           顶层 CMake 构建脚本
 ├── CMakePresets.json        采集/显示节点构建预设
 ├── WIRING.md                硬件接线说明
-├── FUNCTION_GUIDE.md        面向初学者的函数说明
-├── FUNCTION_DESIGN_WALKTHROUGH.md
-│                            功能函数设计与协作脉络
-├── PROJECT_STRUCTURE.md     当前项目结构文档
 ├── README.md                英文项目说明
 ├── README.zh-CN.md          中文项目说明
+├── docs/                    扩展项目文档
+│   ├── FUNCTION_GUIDE.md
+│   ├── FUNCTION_DESIGN_WALKTHROUGH.md
+│   └── PROJECT_STRUCTURE.md
 └── assets/                  本地参考资料，已被 Git 忽略
 ```
 
@@ -130,9 +130,9 @@ The CMake build is the verified path in this repository. Keil files are kept for
 | `README.md` | English overview, build steps, protocol, and demo checklist. / 英文项目概览、构建步骤、协议和演示清单。 |
 | `README.zh-CN.md` | Chinese overview for course presentation and quick reading. / 中文项目概览，适合课程展示和快速阅读。 |
 | `WIRING.md` | Pin wiring guide for both boards and optional modules. / 两块板和可选模块的接线说明。 |
-| `FUNCTION_GUIDE.md` | Beginner-level function map. / 面向初学者的函数说明。 |
-| `FUNCTION_DESIGN_WALKTHROUGH.md` | Detailed function design and coordination walkthrough with diagrams. / 带图表的功能函数设计与协作脉络讲解。 |
-| `PROJECT_STRUCTURE.md` | Repository layout and edit guide. / 仓库结构和修改入口说明。 |
+| `docs/FUNCTION_GUIDE.md` | Beginner-level function map. / 面向初学者的函数说明。 |
+| `docs/FUNCTION_DESIGN_WALKTHROUGH.md` | Detailed function design and coordination walkthrough with diagrams. / 带图表的功能函数设计与协作脉络讲解。 |
+| `docs/PROJECT_STRUCTURE.md` | Repository layout and edit guide. / 仓库结构和修改入口说明。 |
 
 ## Ignored Local Files / 被忽略的本地文件
 

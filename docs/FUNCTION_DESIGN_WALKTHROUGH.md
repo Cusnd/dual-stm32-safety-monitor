@@ -1,6 +1,6 @@
 # 功能函数设计与协作脉络
 
-[English README](README.md) | [中文 README](README.zh-CN.md) | [函数速查](FUNCTION_GUIDE.md) | [项目结构](PROJECT_STRUCTURE.md)
+[English README](../README.md) | [中文 README](../README.zh-CN.md) | [函数速查](FUNCTION_GUIDE.md) | [项目结构](PROJECT_STRUCTURE.md)
 
 本文档的目标不是简单罗列函数，而是解释这个双 STM32 项目中“每个涉及功能的函数为什么这样设计、如何互相配合、数据如何从传感器一路流到 OLED/报警/Flash”。如果要准备答辩，可以按本文的顺序讲：先讲系统总架构，再讲双角色编译，再讲采集链路、通信链路、显示报警链路，最后讲可选 Flash 记录和异常恢复。
 

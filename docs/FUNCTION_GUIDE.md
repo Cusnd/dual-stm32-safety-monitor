@@ -1,6 +1,6 @@
 # Function Guide / 函数说明
 
-[English README](README.md) | [中文 README](README.zh-CN.md) | [Detailed Design / 详细设计](FUNCTION_DESIGN_WALKTHROUGH.md) | [Project Structure / 项目结构](PROJECT_STRUCTURE.md)
+[English README](../README.md) | [中文 README](../README.zh-CN.md) | [Detailed Design / 详细设计](FUNCTION_DESIGN_WALKTHROUGH.md) | [Project Structure / 项目结构](PROJECT_STRUCTURE.md)
 
 This guide explains the important project functions for beginners.  
 这份文档面向初学者，解释项目里主要函数的作用、调用关系和阅读顺序。
@@ -11,9 +11,9 @@ For a deeper explanation of how these functions coordinate as a complete system,
 
 ## How To Read The Firmware / 如何阅读固件
 
-Start from `main()` in [Core/Src/main.c](Core/Src/main.c). The firmware is compiled into two different programs by `APP_NODE_ROLE`:
+Start from `main()` in [Core/Src/main.c](../Core/Src/main.c). The firmware is compiled into two different programs by `APP_NODE_ROLE`:
 
-先从 [Core/Src/main.c](Core/Src/main.c) 里的 `main()` 看起。项目通过 `APP_NODE_ROLE` 把同一份源码编译成两个不同程序：
+先从 [Core/Src/main.c](../Core/Src/main.c) 里的 `main()` 看起。项目通过 `APP_NODE_ROLE` 把同一份源码编译成两个不同程序：
 
 | Role / 角色 | Build preset / 构建预设 | Main loop / 主循环 | Board / 板子 |
 |---|---|---|---|

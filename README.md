@@ -72,9 +72,9 @@ Full wiring notes are in [WIRING.md](WIRING.md).
 ## Documentation
 
 - [WIRING.md](WIRING.md): hardware wiring guide.
-- [FUNCTION_GUIDE.md](FUNCTION_GUIDE.md): bilingual beginner guide to the main firmware functions.
-- [FUNCTION_DESIGN_WALKTHROUGH.md](FUNCTION_DESIGN_WALKTHROUGH.md): detailed function design, coordination logic, and diagram-driven walkthrough.
-- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md): bilingual repository layout and modification guide.
+- [docs/FUNCTION_GUIDE.md](docs/FUNCTION_GUIDE.md): bilingual beginner guide to the main firmware functions.
+- [docs/FUNCTION_DESIGN_WALKTHROUGH.md](docs/FUNCTION_DESIGN_WALKTHROUGH.md): detailed function design, coordination logic, and diagram-driven walkthrough.
+- [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md): bilingual repository layout and modification guide.
 
 ## Firmware Images
 
@@ -151,12 +151,12 @@ K2 long press cycles threshold profiles.
 ├── CMakeLists.txt           Top-level firmware build script
 ├── CMakePresets.json        Sensor/monitor build presets
 ├── WIRING.md                Hardware wiring guide
-├── FUNCTION_GUIDE.md        Bilingual beginner function guide
-├── FUNCTION_DESIGN_WALKTHROUGH.md
-│                            Detailed function design walkthrough
-├── PROJECT_STRUCTURE.md     Bilingual repository structure guide
 ├── README.md                This file
 ├── README.zh-CN.md          Chinese README
+├── docs/                    Supplementary project documentation
+│   ├── FUNCTION_GUIDE.md
+│   ├── FUNCTION_DESIGN_WALKTHROUGH.md
+│   └── PROJECT_STRUCTURE.md
 └── assets/                  Local notes/images, intentionally ignored
 ```
 
