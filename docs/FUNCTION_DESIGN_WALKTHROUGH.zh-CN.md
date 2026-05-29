@@ -1,8 +1,8 @@
 # 功能函数设计与协作脉络
 
-[English README](../README.md) | [中文 README](../README.zh-CN.md) | [函数速查](FUNCTION_GUIDE.md) | [项目结构](PROJECT_STRUCTURE.md)
+[English version](FUNCTION_DESIGN_WALKTHROUGH.en.md) | [English README](../README.md) | [中文 README](../README.zh-CN.md) | [函数速查](FUNCTION_GUIDE.md) | [项目结构](PROJECT_STRUCTURE.md)
 
-本文档的目标不是简单罗列函数，而是解释这个双 STM32 项目中“每个涉及功能的函数为什么这样设计、如何互相配合、数据如何从传感器一路流到 OLED/报警/Flash”。如果要准备答辩，可以按本文的顺序讲：先讲系统总架构，再讲双角色编译，再讲采集链路、通信链路、显示报警链路，最后讲可选 Flash 记录和异常恢复。
+本文档的目标不是简单罗列函数，而是解释这个双 STM32 项目中“每个涉及功能的函数为什么这样设计、如何互相配合、数据如何从传感器一路流到 OLED/报警/Flash”。如果要做项目展示、技术讲解或复盘说明，可以按本文的顺序讲：先讲系统总架构，再讲双角色编译，再讲采集链路、通信链路、显示报警链路，最后讲可选 Flash 记录和异常恢复。
 
 ## 1. 总体设计思路
 
@@ -206,7 +206,7 @@ flowchart LR
 | 函数 | 设计说明 |
 |---|---|
 | `Frame_Encode(frame, out)` | 把结构体按固定顺序写入 13 字节数组。帧头固定为 `AA 55`，长度固定为 `9`，ADC 高字节先发，最后写 checksum |
-| `Frame_Checksum(data, len)` | 对 `LEN + payload` 累加并取低 8 位。算法很简单，适合课堂讲解和串口助手手算验证 |
+| `Frame_Checksum(data, len)` | 对 `LEN + payload` 累加并取低 8 位。算法很简单，适合技术讲解和串口助手手算验证 |
 | `Sensor_SendFrame(frame)` | 把“编码”和“通过 USART3 发送”封装到一起，让采集主循环不关心底层字节发送细节 |
 
 ### 5.2 解码函数
@@ -393,7 +393,7 @@ flowchart TD
 | `g_page == 0` | 状态、温湿度、空气 ADC、烟雾 ADC 和火焰状态 | 常规监测界面 |
 | `g_page == 1` | 阈值档位、空气阈值、烟雾阈值、帧序号和 Flash 状态 | 参数/调试界面 |
 
-显示函数故意不显示太多内容，因为 0.96 寸 OLED 可读空间有限。每页 4 行可以保证答辩展示时老师能看清楚。
+显示函数故意不显示太多内容，因为 0.96 寸 OLED 可读空间有限。每页 4 行可以保证现场演示或项目讲解时清楚可读。
 
 ## 11. 可选 W25Q64 Flash 记录链路
 
@@ -481,11 +481,11 @@ flowchart LR
 | `g_flash_log_addr` | `Flash_Init_Custom()`、`Flash_LogFrame()` | `Flash_LogFrame()` | 下一条 Flash 记录写入地址 |
 | `g_node_rx_buf/head/tail` | `USART3_IRQHandler()`、`USART_ReadByte()` | `USART_ReadByte()`、`Monitor_ProcessRx()` | 中断与主循环之间的接收缓冲 |
 
-这些全局变量就是模块之间的“接口”。函数之间没有复杂对象传来传去，而是用少量状态变量建立清晰的数据通道，适合单文件课程项目。
+这些全局变量就是模块之间的“接口”。函数之间没有复杂对象传来传去，而是用少量状态变量建立清晰的数据通道，适合小型嵌入式系统项目。
 
 ## 14. 从一次采样到一次报警的完整链路
 
-下面这张图可以作为答辩主图，从左到右讲完整闭环：
+下面这张图可以作为项目讲解主图，从左到右讲完整闭环：
 
 ```mermaid
 flowchart LR
@@ -587,11 +587,11 @@ flowchart LR
 | Flash | `Flash_SectorErase()` | 初始化/循环写满 | 擦除 4 KB 扇区 |
 | Flash | `Flash_PageProgram()` | `Flash_LogFrame()` | 写入记录 |
 
-## 17. 答辩讲解建议
+## 17. 项目讲解建议
 
-可以按下面的 5 分钟节奏讲：
+可以按下面的节奏做项目介绍、演示讲解或技术复盘：
 
-1. 先展示总体架构图：两块 STM32，一块采集，一块显示报警，USART3 连接。
+1. 展示总体架构图：两块 STM32，一块采集，一块显示报警，USART3 连接。
 2. 讲为什么保留 USART1：PA9/PA10 默认接 CH340C，用来双串口调试。
 3. 讲板 A 采集链路：DHT11 单总线、MQ ADC、火焰 DO、滑动平均、数据帧。
 4. 讲板 B 处理链路：中断环形缓冲、帧头同步、checksum、OLED/报警/按键。

@@ -1,13 +1,13 @@
 # Function Guide / 函数说明
 
-[English README](../README.md) | [中文 README](../README.zh-CN.md) | [Detailed Design / 详细设计](FUNCTION_DESIGN_WALKTHROUGH.md) | [Project Structure / 项目结构](PROJECT_STRUCTURE.md)
+[English README](../README.md) | [中文 README](../README.zh-CN.md) | [Detailed Design](FUNCTION_DESIGN_WALKTHROUGH.en.md) | [详细设计](FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md) | [Project Structure / 项目结构](PROJECT_STRUCTURE.md)
 
 This guide explains the important project functions for beginners.  
 这份文档面向初学者，解释项目里主要函数的作用、调用关系和阅读顺序。
 
-For a deeper explanation of how these functions coordinate as a complete system, see [FUNCTION_DESIGN_WALKTHROUGH.md](FUNCTION_DESIGN_WALKTHROUGH.md).
+For a deeper explanation of how these functions coordinate as a complete system, see [FUNCTION_DESIGN_WALKTHROUGH.en.md](FUNCTION_DESIGN_WALKTHROUGH.en.md).
 
-如果想看更细的函数设计理由、协作逻辑和图表串联，请继续阅读 [FUNCTION_DESIGN_WALKTHROUGH.md](FUNCTION_DESIGN_WALKTHROUGH.md)。
+如果想看更细的函数设计理由、协作逻辑和图表串联，请继续阅读 [FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md](FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md)。
 
 ## How To Read The Firmware / 如何阅读固件
 
@@ -98,9 +98,9 @@ AA 55 LEN TEMP HUMI MQ135_H MQ135_L MQ2_H MQ2_L FLAME SEQ STATUS CHECKSUM
 
 ## OLED Driver / OLED 驱动
 
-These functions implement a tiny SSD1306-style software-I2C display driver. It is intentionally simple for a course project.
+These functions implement a tiny SSD1306-style software-I2C display driver. It is intentionally simple so the project remains easy to inspect, modify, and demonstrate.
 
-这些函数实现了一个小型 SSD1306 风格的软件 I2C OLED 驱动。为了课程项目演示，代码刻意保持简单。
+这些函数实现了一个小型 SSD1306 风格的软件 I2C OLED 驱动。为了便于阅读、修改和演示，代码刻意保持简单。
 
 | Function / 函数 | What it does / 作用 |
 |---|---|

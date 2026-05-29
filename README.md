@@ -11,7 +11,7 @@
 
 ## Overview
 
-This repository contains a course-ready embedded final project built around two Wildfire STM32F103C8T6 dual-USB core boards.
+This repository contains a dual-node embedded reference project built around two Wildfire STM32F103C8T6 dual-USB core boards.
 
 The project avoids ESP8266/Wi-Fi and instead demonstrates a clean dual-MCU architecture:
 
@@ -73,7 +73,7 @@ Full wiring notes are in [WIRING.md](WIRING.md).
 
 - [WIRING.md](WIRING.md): hardware wiring guide.
 - [docs/FUNCTION_GUIDE.md](docs/FUNCTION_GUIDE.md): bilingual beginner guide to the main firmware functions.
-- [docs/FUNCTION_DESIGN_WALKTHROUGH.md](docs/FUNCTION_DESIGN_WALKTHROUGH.md): detailed function design, coordination logic, and diagram-driven walkthrough.
+- [docs/FUNCTION_DESIGN_WALKTHROUGH.en.md](docs/FUNCTION_DESIGN_WALKTHROUGH.en.md) / [中文](docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md): detailed function design, coordination logic, and diagram-driven walkthrough.
 - [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md): bilingual repository layout and modification guide.
 
 ## Firmware Images
@@ -155,7 +155,8 @@ K2 long press cycles threshold profiles.
 ├── README.zh-CN.md          Chinese README
 ├── docs/                    Supplementary project documentation
 │   ├── FUNCTION_GUIDE.md
-│   ├── FUNCTION_DESIGN_WALKTHROUGH.md
+│   ├── FUNCTION_DESIGN_WALKTHROUGH.en.md
+│   ├── FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md
 │   └── PROJECT_STRUCTURE.md
 └── assets/                  Local notes/images, intentionally ignored
 ```

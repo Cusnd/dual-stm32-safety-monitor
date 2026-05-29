@@ -1,6 +1,6 @@
 # 双 STM32F103C8T6 环境安全监测系统
 
-> 一个面向嵌入式期末大作业的双节点环境安全监测项目：一块板负责传感器采集，另一块板负责 OLED 显示、按键交互和本地报警。
+> 一个双节点嵌入式环境安全监测项目：一块板负责传感器采集，另一块板负责 OLED 显示、按键交互和本地报警。
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
@@ -71,7 +71,7 @@ flowchart LR
 
 - [WIRING.md](WIRING.md)：硬件接线说明。
 - [docs/FUNCTION_GUIDE.md](docs/FUNCTION_GUIDE.md)：面向初学者的中英双语函数说明。
-- [docs/FUNCTION_DESIGN_WALKTHROUGH.md](docs/FUNCTION_DESIGN_WALKTHROUGH.md)：详细功能函数设计、协作逻辑和图表串联讲解。
+- [docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md](docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md) / [English](docs/FUNCTION_DESIGN_WALKTHROUGH.en.md)：详细功能函数设计、协作逻辑和图表串联讲解。
 - [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)：中英双语项目结构和修改入口说明。
 
 ## 固件镜像
@@ -153,7 +153,8 @@ K2 长按切换阈值档位。
 ├── README.zh-CN.md          中文说明
 ├── docs/                    扩展项目文档
 │   ├── FUNCTION_GUIDE.md
-│   ├── FUNCTION_DESIGN_WALKTHROUGH.md
+│   ├── FUNCTION_DESIGN_WALKTHROUGH.en.md
+│   ├── FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md
 │   └── PROJECT_STRUCTURE.md
 └── assets/                  本地资料/图片，已在 .gitignore 中忽略
 ```
