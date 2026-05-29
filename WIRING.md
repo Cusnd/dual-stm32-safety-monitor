@@ -41,7 +41,7 @@ Serial settings: `115200 8N1`.
 | Module / 模块 | Module pin / 模块引脚 | STM32 pin / STM32 引脚 | Note / 说明 |
 |---|---|---|---|
 | DHT11 | DATA | `PB12` | Single-wire data / 单总线数据 |
-| DHT11 | VCC | `3V3` | Follow your module label / 按模块标注供电 |
+| DHT11 | VCC | `3V3` | Fire DHT11 module uses 3V3 / 野火 DHT11 模块使用 3V3 |
 | DHT11 | GND | `GND` | Common ground / 共地 |
 | MQ135 | AO | `PA4` | ADC1_CH4 |
 | MQ135 | VCC | `5V` or module supply / 5V 或模块要求电压 | Ensure AO does not exceed 3.3V / 确保 AO 不超过 3.3V |
@@ -62,7 +62,7 @@ Serial settings: `115200 8N1`.
 | OLED | VCC | `3V3` | SSD1306 I2C OLED |
 | OLED | GND | `GND` | Common ground / 共地 |
 | Active buzzer / 有源蜂鸣器 | SIG | `PB8` | Active-high / 高电平响 |
-| Active buzzer / 有源蜂鸣器 | VCC | `3V3/5V` as required / 按模块要求 | Active buzzer recommended / 推荐使用有源蜂鸣器 |
+| Active buzzer / 有源蜂鸣器 | VCC | `3V3` | Fire active buzzer module is rated for low-voltage drive; do not power this module from 5V / 野火有源蜂鸣器模块按低压供电使用，不要给该模块接 5V |
 | Active buzzer / 有源蜂鸣器 | GND | `GND` | Common ground / 共地 |
 
 ## Optional W25Q64 / 可选 W25Q64
@@ -70,6 +70,10 @@ Serial settings: `115200 8N1`.
 Connect this module only to Board B. The system still works without it.
 
 该模块只连接到板 B；不接 W25Q64 时系统仍可正常监测和报警。
+
+Do not use the expansion board's W25Q64/SPI1 direct socket for this project: that socket maps to `PA4/PA5/PA6/PA7`, while this firmware uses SPI2 on `PB12/PB13/PB14/PB15`.
+
+本项目不要把 W25Q64 直接插到扩展板的 W25Q64/SPI1 插座：该插座连接的是 `PA4/PA5/PA6/PA7`，而本固件使用 `PB12/PB13/PB14/PB15` 上的 SPI2。
 
 | W25Q64 pin / 引脚 | STM32 pin / STM32 引脚 | Note / 说明 |
 |---|---|---|
@@ -79,6 +83,15 @@ Connect this module only to Board B. The system still works without it.
 | `SI / MOSI` | `PB15` | SPI2_MOSI |
 | `VCC` | `3V3` | Do not use 5V / 不要接 5V |
 | `GND` | `GND` | Common ground / 共地 |
+
+## Expansion Board Notes / 扩展板注意事项
+
+- The OLED socket on the expansion board maps to `PB6/PB7`, so Board B OLED can be plugged in directly. / 扩展板 OLED 插座对应 `PB6/PB7`，板 B 的 OLED 可直插。
+- USART3 can be wired through communication interface 1/2 because those connectors expose `PB10/PB11`. / USART3 可通过通讯接口 1/2 接线，因为这些接口引出了 `PB10/PB11`。
+- The two MQ modules should follow this project's ADC assignment: MQ135 AO to `PA4`, MQ2 AO to `PA5`. Use the expansion board general IO headers or jumper wires as needed. / 两个 MQ 模块必须按本项目分配：MQ135 AO 接 `PA4`，MQ2 AO 接 `PA5`，可用扩展板通用 IO 或杜邦线完成。
+- Board A DHT11 can use the expansion board general IO3 header, which exposes `PB12`. / 板 A 的 DHT11 可接扩展板通用 IO3，该接口引出 `PB12`。
+- Board A flame `PB13` and Board B W25Q64 SPI2 pins are not the default direct-plug positions for the Fire examples; use the core/expansion breakout headers. / 板 A 火焰 `PB13` 和板 B W25Q64 SPI2 引脚都不是野火例程默认直插位置，需要使用核心板或扩展板排针转接。
+- The expansion board has an extra user key on `PB15` with a series resistor, pull-down, and capacitor. If Board B uses W25Q64 on `PB15` as SPI2 MOSI, leave that expansion-board key unused and do not press it during Flash operations. / 扩展板额外按键连接 `PB15`，带串阻、下拉和电容；如果板 B 将 `PB15` 用作 W25Q64 的 SPI2 MOSI，请不要使用或按下该扩展板按键。
 
 ## Power-On Checks / 上电检查
 

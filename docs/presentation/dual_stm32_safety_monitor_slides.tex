@@ -130,7 +130,7 @@
     \toprule
     目标 & 设计要求 & 对应实现 \\
     \midrule
-    稳定采集 & 每秒采样，减少 MQ 模拟量抖动 & \code{Sensor_App_Run()} + 指数滑动平均 \\
+    稳定采集 & 每秒发帧，MQ 每帧采样，DHT11 安全间隔刷新 & \code{Sensor_App_Run()} + 指数滑动平均 \\
     可靠通信 & 串口帧能识别错位和噪声 & \code{AA 55} 帧头 + 长度 + checksum \\
     本地报警 & 无需云端即可及时提示风险 & RGB LED + 蜂鸣器 + OLED 状态页 \\
     易演示 & 可观察、可断线恢复、可用按键交互 & USART1 日志、NODE LOST、K1/K2 \\
@@ -277,7 +277,7 @@
   \begin{tikzpicture}[node distance=7mm, font=\scriptsize]
     \node[nodebox] (wait) {Wait 1000 ms};
     \node[greenbox, right=of wait] (adc) {Read MQ135\\Read MQ2};
-    \node[greenbox, right=of adc] (dht) {DHT11\\Read};
+    \node[greenbox, right=of adc] (dht) {DHT11\\Read if due};
     \node[amberbox, below=of dht] (avg) {Moving\\Average};
     \node[greenbox, left=of avg] (flame) {Read Flame\\PB13};
     \node[nodebox, left=of flame] (frame) {Fill\\SensorFrame};
@@ -297,7 +297,7 @@
   \end{tikzpicture}
   \vspace{0.5em}
   \begin{block}{设计重点}
-    每秒周期采集，不阻塞显示端；MQ 模拟量使用整数滑动平均，DHT11 错误通过状态位上报。
+    每秒发帧，不阻塞显示端；MQ 每帧采样并做整数滑动平均，DHT11 按 $>$2s 间隔刷新，错误通过状态位上报。
   \end{block}
 \end{frame}
 

@@ -1,5 +1,6 @@
 assets/
 build/
+slides/
 .idea/
 *.su
 MDK-ARM/Fire_F103/

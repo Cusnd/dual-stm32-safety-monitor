@@ -54,7 +54,7 @@ The most useful reading order is:
 
 | Function / 函数 | What it does / 作用 |
 |---|---|
-| `Sensor_App_Run()` | Board A super-loop: every second reads sensors, smooths MQ values, builds a frame, sends it over USART3, and prints debug logs. / 板 A 主循环：每秒读取传感器、平滑 MQ 数值、打包数据帧、通过 USART3 发送，并打印调试日志。 |
+| `Sensor_App_Run()` | Board A super-loop: sends one frame per second, refreshes MQ/flame every frame, refreshes DHT11 at a safe interval, smooths MQ values, and prints debug logs. / 板 A 主循环：每秒发送一帧，每帧刷新 MQ/火焰，按安全间隔刷新 DHT11，平滑 MQ 数值，并打印调试日志。 |
 | `Sensor_GPIO_Init()` | Configures DHT11, flame sensor, MQ135, and MQ2 pins. / 配置 DHT11、火焰模块、MQ135 和 MQ2 使用的引脚。 |
 | `ADC1_Init_Custom()` | Enables and calibrates ADC1 for MQ sensor analog readings. / 使能并校准 ADC1，用于读取 MQ 传感器模拟量。 |
 | `ADC1_ReadChannel()` | Performs one ADC conversion on the selected channel and returns a 12-bit value. / 对指定 ADC 通道采样一次，返回 12 位原始值。 |

@@ -90,7 +90,7 @@ flowchart TD
 
 ## 4. Board A Sampling Pipeline
 
-Board A runs one periodic task every second inside `Sensor_App_Run()`.
+Board A sends one data frame every second inside `Sensor_App_Run()`. MQ135, MQ2, and flame state are refreshed in every frame; DHT11 is refreshed at the safe greater-than-2-second interval required by the module manual, and skipped frames reuse the last temperature/humidity reading.
 
 ```mermaid
 flowchart TD
@@ -98,14 +98,17 @@ flowchart TD
   T -->|"No"| L
   T -->|"Yes"| A["ADC1_ReadChannel(4)\nMQ135"]
   A --> B["ADC1_ReadChannel(5)\nMQ2"]
-  B --> C["DHT11_Read()"]
-  C --> D["Exponential moving average"]
-  D --> E["Read flame PB13\nactive-low"]
-  E --> F["Fill SensorFrame"]
-  F --> G["Frame_Encode()"]
-  G --> H["Sensor_SendFrame()"]
-  H --> I["printf debug log"]
-  I --> L
+  B --> C{"2100 ms since last DHT11 read?"}
+  C -->|"Yes"| C1["DHT11_Read()"]
+  C -->|"No"| D["Reuse last temp/humi"]
+  C1 --> D
+  D --> E["Exponential moving average"]
+  E --> F["Read flame PB13\nactive-low"]
+  F --> G["Fill SensorFrame"]
+  G --> H["Frame_Encode()"]
+  H --> I["Sensor_SendFrame()"]
+  I --> J["printf debug log"]
+  J --> L
 ```
 
 | Function | Role in the chain | Design details |
@@ -113,7 +116,7 @@ flowchart TD
 | `Sensor_GPIO_Init()` | Pin preparation | PA4/PA5 analog inputs for MQ modules, PB13 input for flame, PB12 open-drain for DHT11 |
 | `ADC1_Init_Custom()` | ADC preparation | Enables ADC1, selects safe ADC clock, calibrates before sampling |
 | `ADC1_ReadChannel()` | MQ analog sampling | Performs one conversion and returns a raw 12-bit reading |
-| `DHT11_Read()` | Temperature/humidity sampling | Runs the full DHT11 timing protocol and checksum verification |
+| `DHT11_Read()` | Temperature/humidity sampling | Runs the full DHT11 timing protocol and checksum verification at the DHT11-safe refresh interval |
 | `Sensor_SendFrame()` | Transport handoff | Encodes one `SensorFrame` and sends it on USART3 |
 
 MQ values use a simple integer exponential moving average:
@@ -153,7 +156,7 @@ sequenceDiagram
 | `DHT11_WaitLevel()` | Waits for expected high/low transitions with timeout protection |
 | `DHT11_Read()` | Orchestrates the whole protocol and returns success/failure |
 
-If DHT11 fails, the system keeps running and sets `STATUS_DHT_ERROR` in the frame instead of blocking the whole node.
+DHT11 reads are separated by `DHT11_PERIOD_MS = 2100`; with the 1-second frame period this refreshes about every 3 seconds. If DHT11 fails, the system keeps running and sets `STATUS_DHT_ERROR` in the frame instead of blocking the whole node.
 
 ## 6. Frame Protocol
 

@@ -1,6 +1,6 @@
 # Project Structure / 项目结构
 
-[English README](../README.md) | [中文 README](../README.zh-CN.md) | [Function Guide / 函数说明](FUNCTION_GUIDE.md) | [Detailed Design](FUNCTION_DESIGN_WALKTHROUGH.en.md) | [详细设计](FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md)
+[English README](../README.md) | [中文 README](../README.zh-CN.md) | [CLion+CMake](CLION_CMAKE_GUIDE.zh-CN.md) | [开发板与芯片](BOARD_AND_CHIP_REFERENCE.zh-CN.md) | [模块清单](MODULE_REFERENCE.zh-CN.md) | [Function Guide / 函数说明](FUNCTION_GUIDE.md) | [Detailed Design](FUNCTION_DESIGN_WALKTHROUGH.en.md) | [详细设计](FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md)
 
 This document explains how the repository is organized and where beginners should make changes.  
 本文档说明仓库目录结构，以及初学者修改功能时应该从哪里入手。
@@ -12,7 +12,7 @@ This document explains how the repository is organized and where beginners shoul
 ├── Core/                    Application source and STM32 generated files
 ├── Drivers/                 CMSIS and STM32F1 HAL driver library
 ├── cmake/                   Toolchain and STM32CubeMX CMake glue
-├── MDK-ARM/                 Keil uVision project files
+├── MDK-ARM/                 Keil reference files, not the primary workflow
 ├── Fire_F103.ioc            STM32CubeMX reference configuration
 ├── CMakeLists.txt           Top-level CMake build script
 ├── CMakePresets.json        Sensor/monitor build presets
@@ -23,6 +23,9 @@ This document explains how the repository is organized and where beginners shoul
 │   ├── FUNCTION_GUIDE.md
 │   ├── FUNCTION_DESIGN_WALKTHROUGH.en.md
 │   ├── FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md
+│   ├── CLION_CMAKE_GUIDE.zh-CN.md
+│   ├── BOARD_AND_CHIP_REFERENCE.zh-CN.md
+│   ├── MODULE_REFERENCE.zh-CN.md
 │   └── PROJECT_STRUCTURE.md
 └── assets/                  Local reference files, ignored by Git
 ```
@@ -32,7 +35,7 @@ This document explains how the repository is organized and where beginners shoul
 ├── Core/                    应用源码和 STM32 生成文件
 ├── Drivers/                 CMSIS 与 STM32F1 HAL 驱动库
 ├── cmake/                   工具链和 STM32CubeMX 的 CMake 连接文件
-├── MDK-ARM/                 Keil uVision 工程文件
+├── MDK-ARM/                 Keil 参考文件，不是当前主开发流程
 ├── Fire_F103.ioc            STM32CubeMX 参考配置
 ├── CMakeLists.txt           顶层 CMake 构建脚本
 ├── CMakePresets.json        采集/显示节点构建预设
@@ -43,6 +46,9 @@ This document explains how the repository is organized and where beginners shoul
 │   ├── FUNCTION_GUIDE.md
 │   ├── FUNCTION_DESIGN_WALKTHROUGH.en.md
 │   ├── FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md
+│   ├── CLION_CMAKE_GUIDE.zh-CN.md
+│   ├── BOARD_AND_CHIP_REFERENCE.zh-CN.md
+│   ├── MODULE_REFERENCE.zh-CN.md
 │   └── PROJECT_STRUCTURE.md
 └── assets/                  本地参考资料，已被 Git 忽略
 ```
@@ -82,7 +88,11 @@ Usually you should not edit files under `Drivers/`. Treat them as library code.
 
 一般不建议修改 `Drivers/` 下的文件，把它们当作库代码使用即可。
 
-## Build Files / 构建文件
+## CLion And Build Files / CLion 与构建文件
+
+The primary development workflow is CLion reading `CMakePresets.json`, then using Ninja and `arm-none-eabi-gcc` to build the two firmware images.
+
+当前主开发流程是 CLion 读取 `CMakePresets.json`，再通过 Ninja 和 `arm-none-eabi-gcc` 构建两个固件。
 
 | File / 文件 | Purpose / 用途 |
 |---|---|
@@ -114,16 +124,24 @@ build/SensorDebug/Fire_F103_sensor.hex
 build/MonitorDebug/Fire_F103_monitor.hex
 ```
 
-## Keil And CubeMX Files / Keil 与 CubeMX 文件
+For CLion setup and common profile-selection issues, see [CLION_CMAKE_GUIDE.zh-CN.md](CLION_CMAKE_GUIDE.zh-CN.md).
+
+CLion 配置和 profile 选择常见问题见 [CLION_CMAKE_GUIDE.zh-CN.md](CLION_CMAKE_GUIDE.zh-CN.md)。
+
+## CubeMX And Reference Files / CubeMX 与参考文件
 
 | Path / 路径 | Purpose / 用途 |
 |---|---|
-| `MDK-ARM/` | Keil uVision project and debug configuration. / Keil uVision 工程和调试配置。 |
+| `MDK-ARM/` | Keil reference files kept for compatibility only. / 仅为兼容和参考保留的 Keil 文件。 |
 | `Fire_F103.ioc` | CubeMX reference pin/peripheral configuration. / CubeMX 引脚和外设参考配置。 |
 
-The CMake build is the verified path in this repository. Keil files are kept for students who prefer uVision.
+This repository is maintained and verified through CLion + CMake Presets. Do not use `MDK-ARM/` as the main project entry.
 
-本仓库已验证的构建路径是 CMake。保留 Keil 文件是为了方便习惯 uVision 的同学打开查看或烧录。
+本仓库按 CLion + CMake Presets 维护和验证，不要把 `MDK-ARM/` 当作主工程入口。
+
+`Fire_F103.ioc` is a single reference file for a dual-role firmware. Some pins are reused differently by SENSOR and MONITOR builds, so treat CubeMX regeneration as a controlled maintenance step and review generated GPIO code before committing it.
+
+`Fire_F103.ioc` 是双角色固件共用的一份参考配置。部分引脚在 SENSOR 与 MONITOR 角色下复用方式不同，因此用 CubeMX 重新生成代码时要当作受控维护步骤，并在提交前复核生成的 GPIO 代码。
 
 ## Documentation Files / 文档文件
 
@@ -132,6 +150,9 @@ The CMake build is the verified path in this repository. Keil files are kept for
 | `README.md` | English overview, build steps, protocol, and demo checklist. / 英文项目概览、构建步骤、协议和演示清单。 |
 | `README.zh-CN.md` | Chinese overview for project presentation and quick reading. / 中文项目概览，适合项目展示和快速阅读。 |
 | `WIRING.md` | Pin wiring guide for both boards and optional modules. / 两块板和可选模块的接线说明。 |
+| `docs/CLION_CMAKE_GUIDE.zh-CN.md` | Chinese CLion + CMake Presets workflow guide. / 中文 CLion + CMake Presets 开发流程说明。 |
+| `docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md` | Chinese board, expansion board, chip, circuit, and pin reference. / 中文开发板、扩展板、芯片、电路和引脚说明清单。 |
+| `docs/MODULE_REFERENCE.zh-CN.md` | Chinese external-module reference and wiring rationale. / 中文外接模块说明清单和接线原因说明。 |
 | `docs/FUNCTION_GUIDE.md` | Beginner-level function map. / 面向初学者的函数说明。 |
 | `docs/FUNCTION_DESIGN_WALKTHROUGH.en.md` | English detailed function design and coordination walkthrough with diagrams. / 英文功能函数设计与协作脉络讲解。 |
 | `docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md` | Chinese detailed function design and coordination walkthrough with diagrams. / 中文功能函数设计与协作脉络讲解。 |

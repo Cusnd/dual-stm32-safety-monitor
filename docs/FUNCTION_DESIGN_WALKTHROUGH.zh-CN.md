@@ -102,7 +102,7 @@ flowchart TD
 
 ## 4. 板 A 采集节点：采样、滤波、打包、发送
 
-板 A 的核心是 `Sensor_App_Run()`，它每 1 秒执行一次采样任务。
+板 A 的核心是 `Sensor_App_Run()`，它每 1 秒发送一次采集帧。MQ135、MQ2 和火焰状态每帧刷新；DHT11 按模块手册要求，以大于 2 秒的安全间隔刷新，未到间隔时沿用上一次温湿度值。
 
 ```mermaid
 flowchart TD
@@ -110,14 +110,17 @@ flowchart TD
   T -->|"No"| L
   T -->|"Yes"| A["ADC1_ReadChannel(4)\nMQ135 raw"]
   A --> B["ADC1_ReadChannel(5)\nMQ2 raw"]
-  B --> C["DHT11_Read(&temp, &humi)"]
-  C --> D["Exponential moving average\nmq_avg = old*3/4 + raw*1/4"]
-  D --> E["Read flame GPIO PB13\nactive-low"]
-  E --> F["Fill SensorFrame"]
-  F --> G["Frame_Encode()"]
-  G --> H["Sensor_SendFrame()"]
-  H --> I["printf debug log"]
-  I --> L
+  B --> C{"now - last_dht_ms >= 2100ms?"}
+  C -->|"Yes"| C1["DHT11_Read(&temp, &humi)"]
+  C -->|"No"| D["Reuse last temp/humi"]
+  C1 --> D
+  D --> E["Exponential moving average\nmq_avg = old*3/4 + raw*1/4"]
+  E --> F["Read flame GPIO PB13\nactive-low"]
+  F --> G["Fill SensorFrame"]
+  G --> H["Frame_Encode()"]
+  H --> I["Sensor_SendFrame()"]
+  I --> J["printf debug log"]
+  J --> L
 ```
 
 ### 4.1 传感器 GPIO 与 ADC 初始化
@@ -156,7 +159,7 @@ sequenceDiagram
 | `DHT11_WaitLevel(level, timeout_us)` | 等待数据线到达指定电平，并用超时避免死等 | `DHT11_Read()` 中每个回应阶段、每一位读取阶段都依赖它 |
 | `DHT11_Read(temp, humi)` | 完整执行 DHT11 协议，输出温度和湿度 | 成功返回 `1`；失败返回 `0`，失败状态会写入 `STATUS_DHT_ERROR` |
 
-DHT11 失败时，项目不让整个系统卡住，而是继续发送数据帧，并在 `status` 里标记错误。这是一个很重要的设计点：传感器短暂失败不会导致通信和显示链路停摆。
+DHT11 每次读取之间保留 `DHT11_PERIOD_MS = 2100` 的最小间隔，实际在 1 秒帧周期下约每 3 秒刷新一次。读取失败时，项目不让整个系统卡住，而是继续发送数据帧，并在 `status` 里标记错误。这是一个很重要的设计点：传感器短暂失败不会导致通信和显示链路停摆。
 
 ### 4.3 MQ 传感器滤波
 
@@ -507,7 +510,7 @@ flowchart LR
 可以这样讲解：
 
 1. 传感器先被 GPIO/ADC 初始化。
-2. 板 A 每秒采样一次，并对 MQ 值做轻量滤波。
+2. 板 A 每秒发送一帧，MQ/火焰每帧刷新，DHT11 按安全间隔刷新，并对 MQ 值做轻量滤波。
 3. 采样结果放进 `SensorFrame`，再通过固定帧格式编码。
 4. USART3 负责双板通信，板 B 用中断收字节，主循环解析帧。
 5. 合法帧更新 `g_latest_frame`，同时刷新最后接收时间。

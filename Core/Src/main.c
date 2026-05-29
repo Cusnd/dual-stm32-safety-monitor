@@ -61,6 +61,7 @@
  */
 #define USART_BAUDRATE    115200u
 #define SENSOR_PERIOD_MS  1000u
+#define DHT11_PERIOD_MS   2100u
 #define UI_PERIOD_MS      300u
 #define ALARM_PERIOD_MS   100u
 #define NODE_TIMEOUT_MS   3000u
@@ -216,9 +217,11 @@ static void App_Init(void)
 static APP_MAYBE_UNUSED void Sensor_App_Run(void)
 {
   uint32_t last_sensor_ms = 0u;
+  uint32_t last_dht_ms = 0u - DHT11_PERIOD_MS;
   uint8_t seq = 0u;
   uint8_t temp = 0u;
   uint8_t humi = 0u;
+  uint8_t dht_ok = 0u;
   uint8_t avg_valid = 0u;
   uint16_t mq135_avg = 0u;
   uint16_t mq2_avg = 0u;
@@ -231,7 +234,17 @@ static APP_MAYBE_UNUSED void Sensor_App_Run(void)
       SensorFrame frame;
       const uint16_t mq135_raw = ADC1_ReadChannel(4u);
       const uint16_t mq2_raw = ADC1_ReadChannel(5u);
-      const uint8_t dht_ok = DHT11_Read(&temp, &humi);
+
+      /* DHT11 requires more than 2 seconds between conversions.  Frames still
+       * go out once per second; skipped frames reuse the last valid reading.
+       * DHT11 每次采集间隔需大于 2 秒；串口帧仍保持每秒发送，未到刷新
+       * 间隔时沿用上一次温湿度值。
+       */
+      if ((uint32_t)(now - last_dht_ms) >= DHT11_PERIOD_MS)
+      {
+        dht_ok = DHT11_Read(&temp, &humi);
+        last_dht_ms = now;
+      }
 
       /* A lightweight exponential moving average smooths noisy MQ sensor ADC
        * values without storing a full sample window.

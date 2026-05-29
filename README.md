@@ -72,6 +72,9 @@ Full wiring notes are in [WIRING.md](WIRING.md).
 ## Documentation
 
 - [WIRING.md](WIRING.md): hardware wiring guide.
+- [docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md](docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md): Chinese board, expansion board, and STM32F103C8T6 chip reference.
+- [docs/MODULE_REFERENCE.zh-CN.md](docs/MODULE_REFERENCE.zh-CN.md): Chinese module reference for DHT11, MQ sensors, flame sensor, OLED, buzzer, and W25Q64.
+- [docs/CLION_CMAKE_GUIDE.zh-CN.md](docs/CLION_CMAKE_GUIDE.zh-CN.md): Chinese CLion + CMake Presets workflow guide.
 - [docs/FUNCTION_GUIDE.md](docs/FUNCTION_GUIDE.md): bilingual beginner guide to the main firmware functions.
 - [docs/FUNCTION_DESIGN_WALKTHROUGH.en.md](docs/FUNCTION_DESIGN_WALKTHROUGH.en.md) / [中文](docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md): detailed function design, coordination logic, and diagram-driven walkthrough.
 - [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md): bilingual repository layout and modification guide.
@@ -86,16 +89,26 @@ The same source file, [Core/Src/main.c](Core/Src/main.c), is compiled into two i
 | `SensorDebug` | `build/SensorDebug/Fire_F103_sensor.hex` | Board A |
 | `MonitorDebug` | `build/MonitorDebug/Fire_F103_monitor.hex` | Board B |
 
-## Build
+## CLion + CMake Build
+
+The primary workflow for this repository is **CLion + CMake Presets + Ninja + ARM GCC**. Open the repository root in CLion, then select the `SensorDebug` or `MonitorDebug` CMake profile.
 
 Requirements:
 
+- CLion
 - CMake
 - Ninja
 - `arm-none-eabi-gcc`
 - STM32CubeCLT or an equivalent ARM GCC toolchain
 
-Build both nodes:
+CLion/CMake profiles:
+
+| Profile | Output | Burn to |
+|---|---|---|
+| `SensorDebug` | `build/SensorDebug/Fire_F103_sensor.hex` | Board A |
+| `MonitorDebug` | `build/MonitorDebug/Fire_F103_monitor.hex` | Board B |
+
+Command-line equivalent:
 
 ```powershell
 cmake --preset SensorDebug
@@ -105,9 +118,11 @@ cmake --preset MonitorDebug
 cmake --build --preset MonitorDebug
 ```
 
+See [docs/CLION_CMAKE_GUIDE.zh-CN.md](docs/CLION_CMAKE_GUIDE.zh-CN.md) for the detailed CLion workflow. `MDK-ARM/` is kept only as reference material, not as the primary development entry point.
+
 ## Frame Protocol
 
-Board A sends one 13-byte frame per second:
+Board A sends one 13-byte frame per second. MQ readings and flame state are refreshed in every frame; DHT11 is refreshed at a greater-than-2-second interval required by the module manual, and skipped frames reuse the last temperature/humidity reading.
 
 ```text
 AA 55 LEN TEMP HUMI MQ135_H MQ135_L MQ2_H MQ2_L FLAME SEQ STATUS CHECKSUM
@@ -147,7 +162,7 @@ K2 long press cycles threshold profiles.
 ├── Core/                    Application and generated STM32 source
 ├── Drivers/                 CMSIS and STM32F1 HAL drivers
 ├── cmake/                   Toolchain and CubeMX CMake glue
-├── MDK-ARM/                 Keil uVision project files
+├── MDK-ARM/                 Keil reference files, not the CLion workflow
 ├── Fire_F103.ioc            CubeMX pin/peripheral reference
 ├── CMakeLists.txt           Top-level firmware build script
 ├── CMakePresets.json        Sensor/monitor build presets
@@ -169,7 +184,7 @@ K2 long press cycles threshold profiles.
 2. Burn `Fire_F103_monitor.hex` to Board B.
 3. Connect USART3 cross-wires and common GND.
 4. Open both CH340C serial ports at `115200 8N1`.
-5. Confirm Board A prints `[SENSOR]` every second.
+5. Confirm Board A prints `[SENSOR]` every second; DHT11 temperature/humidity updates about every 3 seconds.
 6. Confirm Board B prints `[MONITOR] rx` and updates OLED.
 7. Disconnect the USART3 link and wait for `NODE LOST`.
 8. Trigger smoke/flame sensor changes and watch alarm state transitions.

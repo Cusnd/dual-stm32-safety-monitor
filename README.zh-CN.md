@@ -70,6 +70,9 @@ flowchart LR
 ## 配套文档
 
 - [WIRING.md](WIRING.md)：硬件接线说明。
+- [docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md](docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md)：开发板、扩展板和 STM32F103C8T6 芯片说明清单。
+- [docs/MODULE_REFERENCE.zh-CN.md](docs/MODULE_REFERENCE.zh-CN.md)：DHT11、MQ、火焰、OLED、蜂鸣器、W25Q64 等模块说明清单。
+- [docs/CLION_CMAKE_GUIDE.zh-CN.md](docs/CLION_CMAKE_GUIDE.zh-CN.md)：CLion + CMake Presets 构建和烧录产物说明。
 - [docs/FUNCTION_GUIDE.md](docs/FUNCTION_GUIDE.md)：面向初学者的中英双语函数说明。
 - [docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md](docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md) / [English](docs/FUNCTION_DESIGN_WALKTHROUGH.en.md)：详细功能函数设计、协作逻辑和图表串联讲解。
 - [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)：中英双语项目结构和修改入口说明。
@@ -84,16 +87,26 @@ flowchart LR
 | `SensorDebug` | `build/SensorDebug/Fire_F103_sensor.hex` | 板 A |
 | `MonitorDebug` | `build/MonitorDebug/Fire_F103_monitor.hex` | 板 B |
 
-## 构建方法
+## CLion + CMake 构建方法
+
+本项目的主开发方式是 **CLion + CMake Presets + Ninja + ARM GCC**。CLion 打开仓库根目录后，直接选择 `SensorDebug` 或 `MonitorDebug` profile 构建即可。
 
 需要安装：
 
+- CLion
 - CMake
 - Ninja
 - `arm-none-eabi-gcc`
 - STM32CubeCLT 或等价 ARM GCC 工具链
 
-在仓库根目录执行：
+CLion 中使用：
+
+| CLion / CMake Preset | 输出文件 | 烧录到 |
+|---|---|---|
+| `SensorDebug` | `build/SensorDebug/Fire_F103_sensor.hex` | 板 A |
+| `MonitorDebug` | `build/MonitorDebug/Fire_F103_monitor.hex` | 板 B |
+
+命令行等价操作为：
 
 ```powershell
 cmake --preset SensorDebug
@@ -103,9 +116,11 @@ cmake --preset MonitorDebug
 cmake --build --preset MonitorDebug
 ```
 
+更详细的 CLion 配置、profile 选择和常见问题见 [docs/CLION_CMAKE_GUIDE.zh-CN.md](docs/CLION_CMAKE_GUIDE.zh-CN.md)。`MDK-ARM/` 不是当前主开发入口，只作为参考文件保留。
+
 ## 通信协议
 
-板 A 每秒发送一帧 13 字节数据：
+板 A 每秒发送一帧 13 字节数据。MQ 和火焰状态每帧刷新；DHT11 按模块手册要求以大于 2 秒的间隔刷新，未刷新帧沿用上一次温湿度值。
 
 ```text
 AA 55 LEN TEMP HUMI MQ135_H MQ135_L MQ2_H MQ2_L FLAME SEQ STATUS CHECKSUM
@@ -145,7 +160,7 @@ K2 长按切换阈值档位。
 ├── Core/                    应用层和 STM32 生成源码
 ├── Drivers/                 CMSIS 与 STM32F1 HAL 驱动
 ├── cmake/                   工具链和 CubeMX CMake 配置
-├── MDK-ARM/                 Keil uVision 工程文件
+├── MDK-ARM/                 Keil 参考文件，不是 CLion 主流程
 ├── Fire_F103.ioc            CubeMX 引脚/外设参考配置
 ├── CMakeLists.txt           顶层固件构建脚本
 ├── CMakePresets.json        SENSOR/MONITOR 构建预设
@@ -167,7 +182,7 @@ K2 长按切换阈值档位。
 2. 将 `Fire_F103_monitor.hex` 烧录到板 B。
 3. 连接两块板的 USART3 交叉线，并保证 GND 共地。
 4. 打开两个 CH340C 串口，波特率均为 `115200 8N1`。
-5. 确认板 A 每秒打印一次 `[SENSOR]` 采样日志。
+5. 确认板 A 每秒打印一次 `[SENSOR]` 日志；DHT11 温湿度约每 3 秒刷新一次。
 6. 确认板 B 打印 `[MONITOR] rx` 并刷新 OLED。
 7. 断开 USART3 通信线，等待 OLED 显示 `NODE LOST`。
 8. 用烟雾/酒精/火焰源触发传感器，观察 OLED、RGB 灯和蜂鸣器状态变化。
