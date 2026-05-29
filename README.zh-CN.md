@@ -73,6 +73,7 @@ flowchart LR
 - [docs/FUNCTION_GUIDE.md](docs/FUNCTION_GUIDE.md)：面向初学者的中英双语函数说明。
 - [docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md](docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md) / [English](docs/FUNCTION_DESIGN_WALKTHROUGH.en.md)：详细功能函数设计、协作逻辑和图表串联讲解。
 - [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)：中英双语项目结构和修改入口说明。
+- [docs/presentation/dual_stm32_safety_monitor_slides.pdf](docs/presentation/dual_stm32_safety_monitor_slides.pdf)：使用 LaTeX Beamer 生成的中英双语项目展示文稿。
 
 ## 固件镜像
 
@@ -155,7 +156,8 @@ K2 长按切换阈值档位。
 │   ├── FUNCTION_GUIDE.md
 │   ├── FUNCTION_DESIGN_WALKTHROUGH.en.md
 │   ├── FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md
-│   └── PROJECT_STRUCTURE.md
+│   ├── PROJECT_STRUCTURE.md
+│   └── presentation/        LaTeX Beamer 项目展示文稿
 └── assets/                  本地资料/图片，已在 .gitignore 中忽略
 ```
 

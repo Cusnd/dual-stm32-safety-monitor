@@ -75,6 +75,7 @@ Full wiring notes are in [WIRING.md](WIRING.md).
 - [docs/FUNCTION_GUIDE.md](docs/FUNCTION_GUIDE.md): bilingual beginner guide to the main firmware functions.
 - [docs/FUNCTION_DESIGN_WALKTHROUGH.en.md](docs/FUNCTION_DESIGN_WALKTHROUGH.en.md) / [中文](docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md): detailed function design, coordination logic, and diagram-driven walkthrough.
 - [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md): bilingual repository layout and modification guide.
+- [docs/presentation/dual_stm32_safety_monitor_slides.pdf](docs/presentation/dual_stm32_safety_monitor_slides.pdf): bilingual project presentation deck built with LaTeX Beamer.
 
 ## Firmware Images
 
@@ -157,7 +158,8 @@ K2 long press cycles threshold profiles.
 │   ├── FUNCTION_GUIDE.md
 │   ├── FUNCTION_DESIGN_WALKTHROUGH.en.md
 │   ├── FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md
-│   └── PROJECT_STRUCTURE.md
+│   ├── PROJECT_STRUCTURE.md
+│   └── presentation/        LaTeX Beamer project presentation
 └── assets/                  Local notes/images, intentionally ignored
 ```
 
