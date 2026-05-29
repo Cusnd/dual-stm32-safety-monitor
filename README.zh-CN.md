@@ -71,6 +71,7 @@ flowchart LR
 
 - [WIRING.md](WIRING.md)：硬件接线说明。
 - [FUNCTION_GUIDE.md](FUNCTION_GUIDE.md)：面向初学者的中英双语函数说明。
+- [FUNCTION_DESIGN_WALKTHROUGH.md](FUNCTION_DESIGN_WALKTHROUGH.md)：详细功能函数设计、协作逻辑和图表串联讲解。
 - [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)：中英双语项目结构和修改入口说明。
 
 ## 固件镜像
@@ -149,6 +150,8 @@ K2 长按切换阈值档位。
 ├── CMakePresets.json        SENSOR/MONITOR 构建预设
 ├── WIRING.md                硬件接线说明
 ├── FUNCTION_GUIDE.md        中英双语函数说明
+├── FUNCTION_DESIGN_WALKTHROUGH.md
+│                            功能函数设计与协作脉络
 ├── PROJECT_STRUCTURE.md     中英双语项目结构说明
 ├── README.md                英文原始说明
 ├── README.zh-CN.md          中文说明

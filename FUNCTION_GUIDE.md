@@ -1,9 +1,13 @@
 # Function Guide / 函数说明
 
-[English README](README.md) | [中文 README](README.zh-CN.md) | [Project Structure / 项目结构](PROJECT_STRUCTURE.md)
+[English README](README.md) | [中文 README](README.zh-CN.md) | [Detailed Design / 详细设计](FUNCTION_DESIGN_WALKTHROUGH.md) | [Project Structure / 项目结构](PROJECT_STRUCTURE.md)
 
 This guide explains the important project functions for beginners.  
 这份文档面向初学者，解释项目里主要函数的作用、调用关系和阅读顺序。
+
+For a deeper explanation of how these functions coordinate as a complete system, see [FUNCTION_DESIGN_WALKTHROUGH.md](FUNCTION_DESIGN_WALKTHROUGH.md).
+
+如果想看更细的函数设计理由、协作逻辑和图表串联，请继续阅读 [FUNCTION_DESIGN_WALKTHROUGH.md](FUNCTION_DESIGN_WALKTHROUGH.md)。
 
 ## How To Read The Firmware / 如何阅读固件
 

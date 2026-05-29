@@ -73,6 +73,7 @@ Full wiring notes are in [WIRING.md](WIRING.md).
 
 - [WIRING.md](WIRING.md): hardware wiring guide.
 - [FUNCTION_GUIDE.md](FUNCTION_GUIDE.md): bilingual beginner guide to the main firmware functions.
+- [FUNCTION_DESIGN_WALKTHROUGH.md](FUNCTION_DESIGN_WALKTHROUGH.md): detailed function design, coordination logic, and diagram-driven walkthrough.
 - [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md): bilingual repository layout and modification guide.
 
 ## Firmware Images
@@ -151,6 +152,8 @@ K2 long press cycles threshold profiles.
 ├── CMakePresets.json        Sensor/monitor build presets
 ├── WIRING.md                Hardware wiring guide
 ├── FUNCTION_GUIDE.md        Bilingual beginner function guide
+├── FUNCTION_DESIGN_WALKTHROUGH.md
+│                            Detailed function design walkthrough
 ├── PROJECT_STRUCTURE.md     Bilingual repository structure guide
 ├── README.md                This file
 ├── README.zh-CN.md          Chinese README
