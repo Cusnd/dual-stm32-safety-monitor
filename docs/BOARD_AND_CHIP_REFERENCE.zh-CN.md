@@ -1,6 +1,6 @@
 # 开发板与芯片说明清单
 
-[返回中文 README](../README.zh-CN.md) | [硬件接线说明](../WIRING.md) | [模块说明清单](MODULE_REFERENCE.zh-CN.md)
+[返回中文 README](../README.zh-CN.md) | [English](BOARD_AND_CHIP_REFERENCE.en.md) | [硬件接线说明](../WIRING.md) | [模块说明清单](MODULE_REFERENCE.zh-CN.md)
 
 本文档专门说明本项目使用的芯片、核心板和扩展板。它回答三个问题：
 

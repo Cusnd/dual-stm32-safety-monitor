@@ -1,6 +1,6 @@
 # 模块说明清单
 
-[返回中文 README](../README.zh-CN.md) | [硬件接线说明](../WIRING.md) | [开发板与芯片说明清单](BOARD_AND_CHIP_REFERENCE.zh-CN.md)
+[返回中文 README](../README.zh-CN.md) | [English](MODULE_REFERENCE.en.md) | [硬件接线说明](../WIRING.md) | [开发板与芯片说明清单](BOARD_AND_CHIP_REFERENCE.zh-CN.md)
 
 本文档专门说明本项目使用的外接模块。它按模块分别给出：
 
@@ -446,4 +446,3 @@ AA 55 LEN TEMP HUMI MQ135_H MQ135_L MQ2_H MQ2_L FLAME SEQ STATUS CHECKSUM
 | 蜂鸣器 | 触发 danger 或 node lost | 蜂鸣器按报警节奏响 |
 | W25Q64 | 接好 SPI2 后上电 | 日志打印 W25Q ID，不接时系统仍运行 |
 | USART3 | 两板交叉连接并共地 | 板 B 打印 `[MONITOR] rx`，OLED 数值刷新 |
-

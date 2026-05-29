@@ -70,9 +70,9 @@ flowchart LR
 ## 配套文档
 
 - [WIRING.md](WIRING.md)：硬件接线说明。
-- [docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md](docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md)：开发板、扩展板和 STM32F103C8T6 芯片说明清单。
-- [docs/MODULE_REFERENCE.zh-CN.md](docs/MODULE_REFERENCE.zh-CN.md)：DHT11、MQ、火焰、OLED、蜂鸣器、W25Q64 等模块说明清单。
-- [docs/CLION_CMAKE_GUIDE.zh-CN.md](docs/CLION_CMAKE_GUIDE.zh-CN.md)：CLion + CMake Presets 构建和烧录产物说明。
+- [docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md](docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md) / [English](docs/BOARD_AND_CHIP_REFERENCE.en.md)：开发板、扩展板和 STM32F103C8T6 芯片说明清单。
+- [docs/MODULE_REFERENCE.zh-CN.md](docs/MODULE_REFERENCE.zh-CN.md) / [English](docs/MODULE_REFERENCE.en.md)：DHT11、MQ、火焰、OLED、蜂鸣器、W25Q64 等模块说明清单。
+- [docs/CLION_CMAKE_GUIDE.zh-CN.md](docs/CLION_CMAKE_GUIDE.zh-CN.md) / [English](docs/CLION_CMAKE_GUIDE.en.md)：CLion + CMake Presets 构建和烧录产物说明。
 - [docs/FUNCTION_GUIDE.md](docs/FUNCTION_GUIDE.md)：面向初学者的中英双语函数说明。
 - [docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md](docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md) / [English](docs/FUNCTION_DESIGN_WALKTHROUGH.en.md)：详细功能函数设计、协作逻辑和图表串联讲解。
 - [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)：中英双语项目结构和修改入口说明。

@@ -72,9 +72,9 @@ Full wiring notes are in [WIRING.md](WIRING.md).
 ## Documentation
 
 - [WIRING.md](WIRING.md): hardware wiring guide.
-- [docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md](docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md): Chinese board, expansion board, and STM32F103C8T6 chip reference.
-- [docs/MODULE_REFERENCE.zh-CN.md](docs/MODULE_REFERENCE.zh-CN.md): Chinese module reference for DHT11, MQ sensors, flame sensor, OLED, buzzer, and W25Q64.
-- [docs/CLION_CMAKE_GUIDE.zh-CN.md](docs/CLION_CMAKE_GUIDE.zh-CN.md): Chinese CLion + CMake Presets workflow guide.
+- [docs/BOARD_AND_CHIP_REFERENCE.en.md](docs/BOARD_AND_CHIP_REFERENCE.en.md) / [中文](docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md): board, expansion board, and STM32F103C8T6 chip reference.
+- [docs/MODULE_REFERENCE.en.md](docs/MODULE_REFERENCE.en.md) / [中文](docs/MODULE_REFERENCE.zh-CN.md): module reference for DHT11, MQ sensors, flame sensor, OLED, buzzer, and W25Q64.
+- [docs/CLION_CMAKE_GUIDE.en.md](docs/CLION_CMAKE_GUIDE.en.md) / [中文](docs/CLION_CMAKE_GUIDE.zh-CN.md): CLion + CMake Presets workflow guide.
 - [docs/FUNCTION_GUIDE.md](docs/FUNCTION_GUIDE.md): bilingual beginner guide to the main firmware functions.
 - [docs/FUNCTION_DESIGN_WALKTHROUGH.en.md](docs/FUNCTION_DESIGN_WALKTHROUGH.en.md) / [中文](docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md): detailed function design, coordination logic, and diagram-driven walkthrough.
 - [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md): bilingual repository layout and modification guide.
@@ -118,7 +118,7 @@ cmake --preset MonitorDebug
 cmake --build --preset MonitorDebug
 ```
 
-See [docs/CLION_CMAKE_GUIDE.zh-CN.md](docs/CLION_CMAKE_GUIDE.zh-CN.md) for the detailed CLion workflow. `MDK-ARM/` is kept only as reference material, not as the primary development entry point.
+See [docs/CLION_CMAKE_GUIDE.en.md](docs/CLION_CMAKE_GUIDE.en.md) for the detailed CLion workflow. `MDK-ARM/` is kept only as reference material, not as the primary development entry point.
 
 ## Frame Protocol
 

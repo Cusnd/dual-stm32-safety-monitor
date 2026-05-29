@@ -1,6 +1,6 @@
 # Project Structure / 项目结构
 
-[English README](../README.md) | [中文 README](../README.zh-CN.md) | [CLion+CMake](CLION_CMAKE_GUIDE.zh-CN.md) | [开发板与芯片](BOARD_AND_CHIP_REFERENCE.zh-CN.md) | [模块清单](MODULE_REFERENCE.zh-CN.md) | [Function Guide / 函数说明](FUNCTION_GUIDE.md) | [Detailed Design](FUNCTION_DESIGN_WALKTHROUGH.en.md) | [详细设计](FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md)
+[English README](../README.md) | [中文 README](../README.zh-CN.md) | [CLion+CMake](CLION_CMAKE_GUIDE.en.md) / [中文](CLION_CMAKE_GUIDE.zh-CN.md) | [Board/Chip](BOARD_AND_CHIP_REFERENCE.en.md) / [中文](BOARD_AND_CHIP_REFERENCE.zh-CN.md) | [Modules](MODULE_REFERENCE.en.md) / [中文](MODULE_REFERENCE.zh-CN.md) | [Function Guide / 函数说明](FUNCTION_GUIDE.md) | [Detailed Design](FUNCTION_DESIGN_WALKTHROUGH.en.md) | [详细设计](FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md)
 
 This document explains how the repository is organized and where beginners should make changes.  
 本文档说明仓库目录结构，以及初学者修改功能时应该从哪里入手。
@@ -23,8 +23,11 @@ This document explains how the repository is organized and where beginners shoul
 │   ├── FUNCTION_GUIDE.md
 │   ├── FUNCTION_DESIGN_WALKTHROUGH.en.md
 │   ├── FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md
+│   ├── CLION_CMAKE_GUIDE.en.md
 │   ├── CLION_CMAKE_GUIDE.zh-CN.md
+│   ├── BOARD_AND_CHIP_REFERENCE.en.md
 │   ├── BOARD_AND_CHIP_REFERENCE.zh-CN.md
+│   ├── MODULE_REFERENCE.en.md
 │   ├── MODULE_REFERENCE.zh-CN.md
 │   └── PROJECT_STRUCTURE.md
 └── assets/                  Local reference files, ignored by Git
@@ -46,8 +49,11 @@ This document explains how the repository is organized and where beginners shoul
 │   ├── FUNCTION_GUIDE.md
 │   ├── FUNCTION_DESIGN_WALKTHROUGH.en.md
 │   ├── FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md
+│   ├── CLION_CMAKE_GUIDE.en.md
 │   ├── CLION_CMAKE_GUIDE.zh-CN.md
+│   ├── BOARD_AND_CHIP_REFERENCE.en.md
 │   ├── BOARD_AND_CHIP_REFERENCE.zh-CN.md
+│   ├── MODULE_REFERENCE.en.md
 │   ├── MODULE_REFERENCE.zh-CN.md
 │   └── PROJECT_STRUCTURE.md
 └── assets/                  本地参考资料，已被 Git 忽略
@@ -124,9 +130,9 @@ build/SensorDebug/Fire_F103_sensor.hex
 build/MonitorDebug/Fire_F103_monitor.hex
 ```
 
-For CLion setup and common profile-selection issues, see [CLION_CMAKE_GUIDE.zh-CN.md](CLION_CMAKE_GUIDE.zh-CN.md).
+For CLion setup and common profile-selection issues, see [CLION_CMAKE_GUIDE.en.md](CLION_CMAKE_GUIDE.en.md) / [中文](CLION_CMAKE_GUIDE.zh-CN.md).
 
-CLion 配置和 profile 选择常见问题见 [CLION_CMAKE_GUIDE.zh-CN.md](CLION_CMAKE_GUIDE.zh-CN.md)。
+CLion 配置和 profile 选择常见问题见 [CLION_CMAKE_GUIDE.zh-CN.md](CLION_CMAKE_GUIDE.zh-CN.md) / [English](CLION_CMAKE_GUIDE.en.md)。
 
 ## CubeMX And Reference Files / CubeMX 与参考文件
 
@@ -150,9 +156,9 @@ This repository is maintained and verified through CLion + CMake Presets. Do not
 | `README.md` | English overview, build steps, protocol, and demo checklist. / 英文项目概览、构建步骤、协议和演示清单。 |
 | `README.zh-CN.md` | Chinese overview for project presentation and quick reading. / 中文项目概览，适合项目展示和快速阅读。 |
 | `WIRING.md` | Pin wiring guide for both boards and optional modules. / 两块板和可选模块的接线说明。 |
-| `docs/CLION_CMAKE_GUIDE.zh-CN.md` | Chinese CLion + CMake Presets workflow guide. / 中文 CLion + CMake Presets 开发流程说明。 |
-| `docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md` | Chinese board, expansion board, chip, circuit, and pin reference. / 中文开发板、扩展板、芯片、电路和引脚说明清单。 |
-| `docs/MODULE_REFERENCE.zh-CN.md` | Chinese external-module reference and wiring rationale. / 中文外接模块说明清单和接线原因说明。 |
+| `docs/CLION_CMAKE_GUIDE.en.md` / `docs/CLION_CMAKE_GUIDE.zh-CN.md` | CLion + CMake Presets workflow guide. / CLion + CMake Presets 开发流程说明。 |
+| `docs/BOARD_AND_CHIP_REFERENCE.en.md` / `docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md` | Board, expansion board, chip, circuit, and pin reference. / 开发板、扩展板、芯片、电路和引脚说明清单。 |
+| `docs/MODULE_REFERENCE.en.md` / `docs/MODULE_REFERENCE.zh-CN.md` | External-module reference and wiring rationale. / 外接模块说明清单和接线原因说明。 |
 | `docs/FUNCTION_GUIDE.md` | Beginner-level function map. / 面向初学者的函数说明。 |
 | `docs/FUNCTION_DESIGN_WALKTHROUGH.en.md` | English detailed function design and coordination walkthrough with diagrams. / 英文功能函数设计与协作脉络讲解。 |
 | `docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md` | Chinese detailed function design and coordination walkthrough with diagrams. / 中文功能函数设计与协作脉络讲解。 |

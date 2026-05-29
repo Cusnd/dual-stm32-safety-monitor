@@ -1,6 +1,6 @@
 # CLion + CMake 使用说明
 
-[返回中文 README](../README.zh-CN.md) | [项目结构](PROJECT_STRUCTURE.md) | [开发板与芯片](BOARD_AND_CHIP_REFERENCE.zh-CN.md) | [模块清单](MODULE_REFERENCE.zh-CN.md)
+[返回中文 README](../README.zh-CN.md) | [English](CLION_CMAKE_GUIDE.en.md) | [项目结构](PROJECT_STRUCTURE.md) | [开发板与芯片](BOARD_AND_CHIP_REFERENCE.zh-CN.md) | [模块清单](MODULE_REFERENCE.zh-CN.md)
 
 本仓库的主开发方式是 **CLion + CMake Presets + Ninja + ARM GCC**。不要把 `MDK-ARM/` 当作主工程；它只是仓库里保留的参考文件。
 
@@ -155,4 +155,3 @@ CLion -> CMake Presets -> Ninja -> arm-none-eabi-gcc -> ELF/HEX/BIN
 ```
 
 `MDK-ARM/` 目录只是为了保留兼容资料和参考，不是你当前开发流程的入口。日常修改、构建、审查都以 CLion 和 CMake 为准。
-
