@@ -12,6 +12,16 @@ const REQUIRED_NUMBERS = [
   "flashReady",
 ];
 
+const V2_REQUIRED_NUMBERS = [
+  "rainRaw",
+  "thermRaw",
+  "thermC10",
+  "rainWet",
+  "thermHot",
+  "flashRecords",
+  "externalRgb",
+];
+
 const ALARM_STATES = new Set(["normal", "warn", "danger", "node_lost"]);
 
 function toInteger(value, field) {
@@ -30,12 +40,34 @@ function normalizeSensorRecord(record) {
     throw new Error("type must be sensor");
   }
 
-  const normalized = { type: "sensor" };
+  const schemaVersion = "schemaVersion" in record ? toInteger(record.schemaVersion, "schemaVersion") : 1;
+  if (schemaVersion !== 1 && schemaVersion !== 2) {
+    throw new Error("schemaVersion must be 1 or 2");
+  }
+
+  const normalized = { type: "sensor", schemaVersion };
   for (const field of REQUIRED_NUMBERS) {
     if (!(field in record)) {
       throw new Error(`missing field: ${field}`);
     }
     normalized[field] = toInteger(record[field], field);
+  }
+
+  if (schemaVersion >= 2) {
+    for (const field of V2_REQUIRED_NUMBERS) {
+      if (!(field in record)) {
+        throw new Error(`missing field: ${field}`);
+      }
+      normalized[field] = toInteger(record[field], field);
+    }
+  } else {
+    normalized.rainRaw = null;
+    normalized.thermRaw = null;
+    normalized.thermC10 = null;
+    normalized.rainWet = 0;
+    normalized.thermHot = 0;
+    normalized.flashRecords = null;
+    normalized.externalRgb = 0;
   }
 
   if (typeof record.alarm !== "string" || !ALARM_STATES.has(record.alarm)) {

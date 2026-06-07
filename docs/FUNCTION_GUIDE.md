@@ -42,7 +42,7 @@ The most useful reading order is:
 
 | Function / 函数 | What it does / 作用 |
 |---|---|
-| `Debug_USART1_Init()` | Configures USART1 on `PA9/PA10` for `printf` debugging through the on-board CH340C. / 配置 `PA9/PA10` 上的 USART1，通过板载 CH340C 打印调试信息。 |
+| `Debug_USART1_Init()` | Configures USART1 on `PA9/PA10` for `printf` debugging through the target board USB-UART bridge. / 配置 `PA9/PA10` 上的 USART1，通过目标板 USB 转串口打印调试信息。 |
 | `Node_USART3_Init()` | Configures USART3 on `PB10/PB11` for board-to-board communication. The monitor enables receive interrupt. / 配置 `PB10/PB11` 上的 USART3 做双板通信；显示节点会开启接收中断。 |
 | `USART_SendByte()` | Waits until the UART transmit register is empty, then sends one byte. / 等待串口发送寄存器空闲后发送 1 个字节。 |
 | `USART_SendBuffer()` | Sends a byte array by repeatedly calling `USART_SendByte()`. / 循环调用 `USART_SendByte()` 发送一段字节数组。 |
@@ -69,7 +69,7 @@ The most useful reading order is:
 | Function / 函数 | What it does / 作用 |
 |---|---|
 | `Frame_Checksum()` | Adds bytes together and returns the low 8 bits as checksum. / 将字节累加，并取低 8 位作为校验和。 |
-| `Frame_Encode()` | Converts a `SensorFrame` structure into the 13-byte wire format. / 把 `SensorFrame` 结构体转换成 13 字节串口帧。 |
+| `Frame_Encode()` | Converts a `SensorFrame` structure into the 22-byte v2 wire format. / 把 `SensorFrame` 结构体转换成 22 字节 v2 串口帧。 |
 | `Frame_Decode()` | Checks header, length, checksum, then converts bytes back into `SensorFrame`. / 检查帧头、长度和校验和，再把字节还原成 `SensorFrame`。 |
 
 Frame format:
@@ -77,8 +77,12 @@ Frame format:
 数据帧格式：
 
 ```text
-AA 55 LEN TEMP HUMI MQ135_H MQ135_L MQ2_H MQ2_L FLAME SEQ STATUS CHECKSUM
+AA 55 LEN VER TEMP HUMI MQ135 MQ2 RAIN THERM THERM_C10 FLAME RAIN_WET THERM_HOT SEQ STATUS CHECKSUM
 ```
+
+`STATUS` bits: `bit0=DHT error`, `bit1=thermistor DO hot`, `bit2=rain wet`, `bit3=thermistor ADC fault`.
+
+`STATUS` 位定义：`bit0=DHT 错误`，`bit1=热敏 DO 高温`，`bit2=雨量湿态`，`bit3=热敏 ADC 异常`。
 
 ## Monitor Node / 显示报警节点
 
@@ -89,12 +93,14 @@ AA 55 LEN TEMP HUMI MQ135_H MQ135_L MQ2_H MQ2_L FLAME SEQ STATUS CHECKSUM
 | `Monitor_ProcessRx()` | Pulls bytes from the ring buffer, searches for `AA 55`, decodes complete frames, and updates latest data. / 从环形缓冲取字节，寻找 `AA 55` 帧头，解码完整数据帧并更新最新数据。 |
 | `Monitor_UpdateButtons()` | Detects K1/K2 edges: K1 switches page, K2 short press mutes, K2 long press changes threshold profile. / 检测 K1/K2 边沿：K1 切页，K2 短按静音，K2 长按切换阈值档位。 |
 | `Monitor_NodeLost()` | Returns true when no valid sensor frame has arrived for more than 3 seconds. / 超过 3 秒没有收到合法采集帧时返回真。 |
-| `Monitor_Danger()` | Checks flame and serious smoke conditions. / 判断是否出现火焰或烟雾严重超标。 |
-| `Monitor_Warn()` | Checks air/smoke warning thresholds and DHT11 error status. / 判断空气/烟雾预警阈值和 DHT11 错误状态。 |
+| `Monitor_Danger()` | Checks flame, serious smoke, and thermistor high-temperature conditions. / 判断火焰、烟雾严重超标和热敏高温。 |
+| `Monitor_Warn()` | Checks air/smoke, rain wet, thermistor warning, and DHT11 error status. / 判断空气/烟雾、雨量湿态、热敏预警和 DHT11 错误状态。 |
 | `Monitor_UpdateAlarm()` | Selects LED color and buzzer pattern according to alarm priority. / 按报警优先级选择 LED 颜色和蜂鸣器节奏。 |
 | `Monitor_UpdateDisplay()` | Writes the current page to the OLED. / 将当前页面内容写到 OLED。 |
 | `LED_Set()` | Controls the active-low on-board RGB LED. / 控制低电平点亮的板载 RGB LED。 |
 | `Buzzer_Set()` | Turns the buzzer on or off. / 打开或关闭蜂鸣器。 |
+| `WS2813_Init_Custom()` | Configures TIM3_CH1 + DMA for external RGB output. / 配置 TIM3_CH1 + DMA，用于外置 RGB 输出。 |
+| `WS2813_SetColor()` | Sends one GRB color frame to the external WS2813E LED. / 向外置 WS2813E 发送一帧 GRB 颜色数据。 |
 
 ## OLED Driver / OLED 驱动
 
@@ -130,7 +136,10 @@ These functions implement a tiny SSD1306-style software-I2C display driver. It i
 | `Flash_WriteEnable()` | Sends the write-enable command required before erase/program. / 发送写使能命令，擦除或写入前必须执行。 |
 | `Flash_SectorErase()` | Erases one 4 KB sector. / 擦除一个 4 KB 扇区。 |
 | `Flash_PageProgram()` | Programs a short data record into flash. / 向 Flash 写入一段较短记录。 |
-| `Flash_LogFrame()` | Saves sensor frame, alarm state, tick time, and checksum into flash. / 将传感器帧、报警状态、系统 tick 和校验和写入 Flash。 |
+| `Flash_ReadData()` | Reads arbitrary bytes from W25Q64. / 从 W25Q64 读取任意字节。 |
+| `Flash_LoadMetadata()` | Restores the circular-log cursor from sector 0 metadata. / 从 sector 0 元数据恢复环形日志游标。 |
+| `Flash_WriteMetadata()` | Appends the next cursor metadata entry. / 追加写入下一条游标元数据。 |
+| `Flash_LogFrame()` | Saves one fixed 32-byte v2 circular-log record. / 写入一条固定 32 字节 v2 环形日志记录。 |
 
 ## Common Beginner Questions / 初学者常见问题
 
@@ -141,10 +150,10 @@ Because both boards share the same protocol and many helper functions. `APP_NODE
 因为两块板共用协议和很多工具函数，`APP_NODE_ROLE` 决定当前固件运行采集节点还是显示节点。
 
 **Why not use USART1 for board-to-board communication?**  
-USART1 `PA9/PA10` is already connected to the on-board CH340C USB-to-UART bridge, so it is kept for debugging.
+USART1 `PA9/PA10` is kept for the target board USB-UART debug bridge, so board-to-board traffic uses USART3 instead.
 
 **为什么不用 USART1 做双板通信？**  
-USART1 的 `PA9/PA10` 已经默认连接板载 CH340C，保留给调试串口更方便。
+USART1 的 `PA9/PA10` 保留给目标板 USB 转串口调试桥，双板通信因此使用 USART3。
 
 **Where should I add a new sensor?**  
 Add its pin definitions near the existing sensor pin macros, initialize the GPIO/ADC in `Sensor_GPIO_Init()` or `ADC1_Init_Custom()`, read it in `Sensor_App_Run()`, and extend the frame protocol only if the monitor also needs the new value.

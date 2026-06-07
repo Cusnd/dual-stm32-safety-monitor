@@ -26,7 +26,7 @@
 | Stale state | Press "Stop replay" and wait more than 3 seconds | Passed | Data showed stale, AI risk changed to node lost, and event log showed stream stopped |
 | Responsive UI | Browser viewports 1280px and 390px | Passed | No horizontal overflow; AI, chat, and chart areas were visible on desktop and mobile |
 | Browser console | Read error/warning logs | Passed | 0 error/warning logs |
-| Web Serial hardware check | Select Board B CH340C serial port | Pending | Requires physical board |
+| Web Serial hardware check | Select Board B USB-UART serial port | Pending | Requires physical board |
 | DeepSeek V4-flash integration | Backend proxy `/api/ai/chat` | Pending | Provider is stubbed; no API key is stored in the browser |
 
 ## Simulated Data
@@ -35,7 +35,7 @@
 
 ## Hardware Record
 
-No hardware or real DeepSeek pass result is recorded yet. The hardware check can only be marked passed after Board B is connected, the CH340C serial port is selected, and live browser updates are observed. DeepSeek can only be marked passed after a backend proxy is connected and real requests complete.
+No hardware or real DeepSeek pass result is recorded yet. The hardware check can only be marked passed after Board B is connected, the USB-UART serial port is selected, and live browser updates are observed. DeepSeek can only be marked passed after a backend proxy is connected and real requests complete.
 
 ## Execution Time
 

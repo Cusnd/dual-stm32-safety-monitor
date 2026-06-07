@@ -130,7 +130,7 @@ Possible flashing paths:
 
 - ST-Link + STM32CubeProgrammer flashing `.hex`.
 - ST-Link + OpenOCD/GDB debugging `.elf`.
-- Serial ISP through the core board CH340C / USART1 download path.
+- Serial ISP through the target board USB-UART / USART1 download path.
 
 This repository now includes ST-LINK/OpenOCD helpers:
 

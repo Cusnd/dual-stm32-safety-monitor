@@ -14,9 +14,24 @@ test("parses valid JSON Lines sensor records", () => {
   );
 
   assert.equal(result.kind, "sensor");
+  assert.equal(result.data.schemaVersion, 1);
   assert.equal(result.data.seq, 31);
   assert.equal(result.data.tempC, 26);
+  assert.equal(result.data.rainRaw, null);
   assert.equal(result.data.alarm, "normal");
+});
+
+test("parses v2 rain, thermistor, flash count, and external RGB fields", () => {
+  const result = parseSerialLine(
+    '{"type":"sensor","schemaVersion":2,"seq":32,"tickMs":124456,"tempC":27,"humidityPct":55,"mq135Raw":1100,"mq2Raw":900,"rainRaw":1580,"thermRaw":1460,"thermC10":452,"rainWet":1,"thermHot":0,"flame":0,"status":4,"alarm":"warn","thresholdProfile":0,"mute":0,"flashReady":1,"flashRecords":42,"externalRgb":1}',
+  );
+
+  assert.equal(result.kind, "sensor");
+  assert.equal(result.data.schemaVersion, 2);
+  assert.equal(result.data.rainRaw, 1580);
+  assert.equal(result.data.thermC10, 452);
+  assert.equal(result.data.flashRecords, 42);
+  assert.equal(result.data.externalRgb, 1);
 });
 
 test("reports missing fields", () => {
@@ -26,6 +41,15 @@ test("reports missing fields", () => {
 
   assert.equal(result.kind, "error");
   assert.match(result.error, /missing field: flashReady/);
+});
+
+test("reports missing v2 extension fields", () => {
+  const result = parseSerialLine(
+    '{"type":"sensor","schemaVersion":2,"seq":31,"tickMs":123456,"tempC":26,"humidityPct":54,"mq135Raw":1020,"mq2Raw":860,"flame":0,"status":0,"alarm":"normal","thresholdProfile":0,"mute":0,"flashReady":1}',
+  );
+
+  assert.equal(result.kind, "error");
+  assert.match(result.error, /missing field: rainRaw/);
 });
 
 test("reports invalid JSON", () => {

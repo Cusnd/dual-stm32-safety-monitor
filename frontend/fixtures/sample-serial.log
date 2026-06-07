@@ -1,12 +1,13 @@
 [MONITOR] boot, USART1 debug ready, USART3 link ready, flash=ok
-[MONITOR] rx seq=11 t=25 h=48 mq135=1180 mq2=760 flame=0 status=0x00
-{"type":"sensor","seq":11,"tickMs":10120,"tempC":25,"humidityPct":48,"mq135Raw":1180,"mq2Raw":760,"flame":0,"status":0,"alarm":"normal","thresholdProfile":0,"mute":0,"flashReady":1}
-[MONITOR] rx seq=12 t=25 h=48 mq135=1730 mq2=1240 flame=0 status=0x00
-{"type":"sensor","seq":12,"tickMs":11120,"tempC":25,"humidityPct":48,"mq135Raw":1730,"mq2Raw":1240,"flame":0,"status":0,"alarm":"normal","thresholdProfile":0,"mute":0,"flashReady":1}
-[MONITOR] rx seq=13 t=26 h=49 mq135=2235 mq2=1810 flame=0 status=0x00
-{"type":"sensor","seq":13,"tickMs":12120,"tempC":26,"humidityPct":49,"mq135Raw":2235,"mq2Raw":1810,"flame":0,"status":0,"alarm":"warn","thresholdProfile":0,"mute":0,"flashReady":1}
-[MONITOR] rx seq=14 t=26 h=49 mq135=2420 mq2=2910 flame=0 status=0x00
-{"type":"sensor","seq":14,"tickMs":13120,"tempC":26,"humidityPct":49,"mq135Raw":2420,"mq2Raw":2910,"flame":0,"status":0,"alarm":"danger","thresholdProfile":0,"mute":0,"flashReady":1}
+[MONITOR] W25Q ID EF 40 17, cursor=0x001000 records=32
+[MONITOR] rx v2 seq=11 t=25 h=48 mq135=1180 mq2=760 rain=830 therm=26.1C flame=0 status=0x00
+{"type":"sensor","schemaVersion":2,"seq":11,"tickMs":10120,"tempC":25,"humidityPct":48,"mq135Raw":1180,"mq2Raw":760,"rainRaw":830,"thermRaw":1510,"thermC10":261,"rainWet":0,"thermHot":0,"flame":0,"status":0,"alarm":"normal","thresholdProfile":0,"mute":0,"flashReady":1,"flashRecords":32,"externalRgb":1}
+[MONITOR] rx v2 seq=12 t=25 h=48 mq135=1730 mq2=1240 rain=1020 therm=27.0C flame=0 status=0x00
+{"type":"sensor","schemaVersion":2,"seq":12,"tickMs":11120,"tempC":25,"humidityPct":48,"mq135Raw":1730,"mq2Raw":1240,"rainRaw":1020,"thermRaw":1550,"thermC10":270,"rainWet":0,"thermHot":0,"flame":0,"status":0,"alarm":"normal","thresholdProfile":0,"mute":0,"flashReady":1,"flashRecords":32,"externalRgb":1}
+[MONITOR] rx v2 seq=13 t=26 h=49 mq135=2235 mq2=1810 rain=1510 therm=32.8C flame=0 status=0x04
+{"type":"sensor","schemaVersion":2,"seq":13,"tickMs":12120,"tempC":26,"humidityPct":49,"mq135Raw":2235,"mq2Raw":1810,"rainRaw":1510,"thermRaw":1680,"thermC10":328,"rainWet":1,"thermHot":0,"flame":0,"status":4,"alarm":"warn","thresholdProfile":0,"mute":0,"flashReady":1,"flashRecords":33,"externalRgb":1}
+[MONITOR] rx v2 seq=14 t=26 h=49 mq135=2420 mq2=2910 rain=1320 therm=72.0C flame=0 status=0x02
+{"type":"sensor","schemaVersion":2,"seq":14,"tickMs":13120,"tempC":26,"humidityPct":49,"mq135Raw":2420,"mq2Raw":2910,"rainRaw":1320,"thermRaw":610,"thermC10":720,"rainWet":0,"thermHot":1,"flame":0,"status":2,"alarm":"danger","thresholdProfile":0,"mute":0,"flashReady":1,"flashRecords":34,"externalRgb":1}
 [MONITOR] buzzer muted for 60s
-[MONITOR] rx seq=15 t=27 h=50 mq135=2280 mq2=1660 flame=0 status=0x01
-{"type":"sensor","seq":15,"tickMs":14120,"tempC":27,"humidityPct":50,"mq135Raw":2280,"mq2Raw":1660,"flame":0,"status":1,"alarm":"warn","thresholdProfile":0,"mute":1,"flashReady":1}
+[MONITOR] rx v2 seq=15 t=27 h=50 mq135=2280 mq2=1660 rain=980 therm=--.-C flame=0 status=0x09
+{"type":"sensor","schemaVersion":2,"seq":15,"tickMs":14120,"tempC":27,"humidityPct":50,"mq135Raw":2280,"mq2Raw":1660,"rainRaw":980,"thermRaw":4095,"thermC10":0,"rainWet":0,"thermHot":0,"flame":0,"status":9,"alarm":"warn","thresholdProfile":0,"mute":1,"flashReady":1,"flashRecords":35,"externalRgb":1}

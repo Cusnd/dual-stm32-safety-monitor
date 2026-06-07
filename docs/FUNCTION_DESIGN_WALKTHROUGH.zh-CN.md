@@ -10,8 +10,8 @@
 
 | 节点 | 角色 | 核心任务 | 关键函数 |
 |---|---|---|---|
-| 板 A | SENSOR 采集节点 | 读取 DHT11、MQ135、MQ2、火焰模块，打包数据帧，通过 USART3 发送 | `Sensor_App_Run()`、`DHT11_Read()`、`ADC1_ReadChannel()`、`Frame_Encode()`、`Sensor_SendFrame()` |
-| 板 B | MONITOR 显示报警节点 | 接收 USART3 数据帧，解析校验，刷新 OLED，驱动 RGB/蜂鸣器，处理按键，可选记录 Flash | `Monitor_App_Run()`、`Monitor_ProcessRx()`、`Frame_Decode()`、`Monitor_UpdateAlarm()`、`Monitor_UpdateDisplay()`、`Flash_LogFrame()` |
+| 板 A | SENSOR 采集节点 | 读取 DHT11、MQ135、MQ2、雨量、热敏和火焰输入，打包 v2 数据帧，通过 USART3 发送 | `Sensor_App_Run()`、`DHT11_Read()`、`ADC1_ReadChannel()`、`Frame_Encode()`、`Sensor_SendFrame()` |
+| 板 B | MONITOR 显示报警节点 | 接收 USART3 数据帧，解析校验，刷新 OLED，驱动 RGB/蜂鸣器/外置 RGB，处理按键，可选记录 Flash | `Monitor_App_Run()`、`Monitor_ProcessRx()`、`Frame_Decode()`、`Monitor_UpdateAlarm()`、`Monitor_UpdateDisplay()`、`Flash_LogFrame()` |
 
 这套设计的重点是“同一份源码，两个固件”。公共协议、公共串口工具、公共数据结构都保留在同一个 `main.c` 中，再由 CMake 编译参数决定当前生成板 A 还是板 B。
 
@@ -55,7 +55,7 @@ flowchart TD
 | 角色宏 | `APP_ROLE_SENSOR`、`APP_ROLE_MONITOR` | 用数字区分两个节点，便于 `#if APP_NODE_ROLE == ...` 条件编译 |
 | CMake 传参 | `CMakeLists.txt` | `SensorDebug` 传 `APP_NODE_ROLE=1`，`MonitorDebug` 传 `APP_NODE_ROLE=2` |
 | 未用函数抑制告警 | `APP_MAYBE_UNUSED` | 因为同一文件同时包含两个节点的函数，某些函数在另一个角色里不会被调用 |
-| 输出文件区分 | `Fire_F103_sensor`、`Fire_F103_monitor` | 防止两个固件产物互相覆盖 |
+| 输出文件区分 | `Fire_F103_sensor`、`Fire_F103_monitor` | 作为历史产物名保留，用于区分两个固件 |
 
 这种方式的好处是：协议结构和工具函数只维护一份，板 A 和板 B 不容易出现“发送格式改了，接收格式忘改”的问题。
 
@@ -102,7 +102,7 @@ flowchart TD
 
 ## 4. 板 A 采集节点：采样、滤波、打包、发送
 
-板 A 的核心是 `Sensor_App_Run()`，它每 1 秒发送一次采集帧。MQ135、MQ2 和火焰状态每帧刷新；DHT11 按模块手册要求，以大于 2 秒的安全间隔刷新，未到间隔时沿用上一次温湿度值。
+板 A 的核心是 `Sensor_App_Run()`，它每 1 秒发送一次采集帧。MQ135、MQ2、雨量、热敏和火焰状态每帧刷新；DHT11 按大于 2 秒的安全间隔刷新，未到间隔时沿用上一次温湿度值。
 
 ```mermaid
 flowchart TD
@@ -110,7 +110,8 @@ flowchart TD
   T -->|"No"| L
   T -->|"Yes"| A["ADC1_ReadChannel(4)\nMQ135 raw"]
   A --> B["ADC1_ReadChannel(5)\nMQ2 raw"]
-  B --> C{"now - last_dht_ms >= 2100ms?"}
+  B --> B2["ADC1_ReadChannel(6/7)\nRain + thermistor"]
+  B2 --> C{"now - last_dht_ms >= 2100ms?"}
   C -->|"Yes"| C1["DHT11_Read(&temp, &humi)"]
   C -->|"No"| D["Reuse last temp/humi"]
   C1 --> D
@@ -127,9 +128,9 @@ flowchart TD
 
 | 函数 | 输入/输出 | 设计细节 |
 |---|---|---|
-| `Sensor_GPIO_Init()` | 无输入；配置 PA4、PA5、PB12、PB13 | PA4/PA5 配成模拟输入给 MQ135/MQ2；PB13 配成上拉输入读取火焰 DO；PB12 配成开漏输出兼容 DHT11 单总线 |
-| `ADC1_Init_Custom()` | 无输入；直接配置 ADC1 寄存器 | 使用 ADC1，采样通道 4/5；设置 ADC 时钟为 12 MHz；执行复位校准和自校准，提升读数稳定性 |
-| `ADC1_ReadChannel(channel)` | 输入 ADC 通道号；输出 12 位 ADC 值 | 每次只采一个通道，适合当前两个 MQ 模块低频采样场景，逻辑简单、可讲清楚 |
+| `Sensor_GPIO_Init()` | 无输入；配置 PA4、PA5、PA6、PA7、PB9、PB12、PB13 | PA4/PA5/PA6/PA7 配成模拟输入给 MQ、雨量和热敏 AO；PB9/PB13 配成数字输入；PB12 兼容 DHT11 单总线 |
+| `ADC1_Init_Custom()` | 无输入；直接配置 ADC1 寄存器 | 使用 ADC1，采样通道 4/5/6/7；设置 ADC 时钟为 12 MHz；执行复位校准和自校准 |
+| `ADC1_ReadChannel(channel)` | 输入 ADC 通道号；输出 12 位 ADC 值 | 每次只采一个通道，适合当前低频多模拟量采样 |
 
 ### 4.2 DHT11 读取链路
 
@@ -208,7 +209,7 @@ flowchart LR
 
 | 函数 | 设计说明 |
 |---|---|
-| `Frame_Encode(frame, out)` | 把结构体按固定顺序写入 13 字节数组。帧头固定为 `AA 55`，长度固定为 `9`，ADC 高字节先发，最后写 checksum |
+| `Frame_Encode(frame, out)` | 把结构体按固定顺序写入 22 字节 v2 数组。帧头固定为 `AA 55`，长度固定为 `18`，版本固定为 `2`，ADC 高字节先发，最后写 checksum |
 | `Frame_Checksum(data, len)` | 对 `LEN + payload` 累加并取低 8 位。算法很简单，适合技术讲解和串口助手手算验证 |
 | `Sensor_SendFrame(frame)` | 把“编码”和“通过 USART3 发送”封装到一起，让采集主循环不关心底层字节发送细节 |
 
@@ -227,17 +228,15 @@ flowchart LR
 |---|---|---|---|
 | 0 | `0xAA` | `FRAME_HEAD0` | 帧头第 1 字节 |
 | 1 | `0x55` | `FRAME_HEAD1` | 帧头第 2 字节 |
-| 2 | `0x09` | `LEN` | payload 长度固定 9 |
-| 3 | `temp` | 温度 | DHT11 温度整数 |
-| 4 | `humi` | 湿度 | DHT11 湿度整数 |
-| 5 | `mq135_adc >> 8` | MQ135 高字节 | 12 位 ADC 高位 |
-| 6 | `mq135_adc & 0xFF` | MQ135 低字节 | 12 位 ADC 低位 |
-| 7 | `mq2_adc >> 8` | MQ2 高字节 | 12 位 ADC 高位 |
-| 8 | `mq2_adc & 0xFF` | MQ2 低字节 | 12 位 ADC 低位 |
-| 9 | `flame` | 火焰状态 | `1` 表示检测到火焰 |
-| 10 | `seq` | 序号 | 每帧递增 |
-| 11 | `status` | 状态位 | bit0 表示 DHT11 读取错误 |
-| 12 | checksum | 校验和 | `LEN + payload` 的低 8 位 |
+| 2 | `0x12` | `LEN` | payload 长度固定 18 |
+| 3 | `0x02` | `VER` | 协议版本 |
+| 4-5 | `temp/humi` | 温湿度 | DHT11 整数值 |
+| 6-13 | ADC 字节 | MQ135/MQ2/RAIN/THERM | 12 位 ADC，高字节先发 |
+| 14-15 | `therm_c10` | 热敏温度 | 单位 0.1 摄氏度 |
+| 16-18 | 标志 | `flame/rain_wet/therm_hot` | 传感器布尔状态 |
+| 19 | `seq` | 序号 | 每帧递增 |
+| 20 | `status` | 状态位 | bit0 DHT 错误，bit1 热敏高温，bit2 雨量湿态，bit3 热敏 ADC 异常 |
+| 21 | checksum | 校验和 | `LEN + payload` 的低 8 位 |
 
 ## 6. 板 B 接收链路：中断收字节，主循环解析帧
 
@@ -409,12 +408,15 @@ flowchart TD
   ID --> OK{"valid W25Q64-like ID?"}
   OK -->|"No"| OFF["g_flash_present = 0\nskip logging"]
   OK -->|"Yes"| ON["g_flash_present = 1"]
-  ON --> ERASE["Flash_SectorErase(0)"]
-  ERASE --> RUN["Monitor_App_Run()"]
-  RUN --> LOG{"10s elapsed and node alive?"}
+  ON --> META["Flash_LoadMetadata()\nsector 0 cursor"]
+  META --> RUN["Monitor_App_Run()"]
+  RUN --> LOG{"10s elapsed\nor state changed?"}
   LOG -->|"Yes"| REC["Flash_LogFrame()"]
-  REC --> WE["Flash_WriteEnable()"]
-  WE --> PP["Flash_PageProgram()"]
+  REC --> WRAP{"sector boundary?"}
+  WRAP -->|"Yes"| ERASE["Flash_SectorErase(log sector)"]
+  WRAP -->|"No"| PP
+  ERASE --> PP["Flash_PageProgram()\n32-byte record"]
+  PP --> META2["Flash_WriteMetadata()"]
   LOG -->|"No"| RUN
 ```
 
@@ -425,29 +427,31 @@ flowchart TD
 | `Flash_ReadStatus()` | 读取状态寄存器，主要关注 busy 位 |
 | `Flash_WaitReady(timeout_ms)` | 等待擦写结束，防止 Flash 忙时继续发命令 |
 | `Flash_WriteEnable()` | W25Q 写入/擦除前必须先写使能 |
-| `Flash_SectorErase(addr)` | 擦除一个 4 KB 扇区，本项目使用扇区 0 做演示记录区 |
-| `Flash_PageProgram(addr, data, len)` | 写入一条较短记录 |
-| `Flash_Init_Custom()` | 初始化 SPI2，读取 JEDEC ID，决定是否启用记录 |
-| `Flash_LogFrame(frame, state)` | 把采集数据、报警状态、tick 时间、阈值档位和 checksum 写入记录 |
+| `Flash_SectorErase(addr)` | 擦除一个 4 KB 扇区，日志写到新扇区前执行 |
+| `Flash_PageProgram(addr, data, len)` | 写入元数据或 32 字节日志记录 |
+| `Flash_Init_Custom()` | 初始化 SPI2，读取 JEDEC ID，并恢复环形日志游标 |
+| `Flash_LoadMetadata()` / `Flash_WriteMetadata()` | 从 sector 0 读取/追加游标元数据 |
+| `Flash_LogFrame(frame, state)` | 写入一条固定 32 字节 v2 环形日志记录 |
 
 ### Flash 记录格式
 
 | 字节范围 | 内容 | 说明 |
 |---|---|---|
-| 0 | `0xE1` | 记录头 |
-| 1 | `0x03` | 记录版本 |
+| 0 | `0xE2` | v2 记录头 |
+| 1 | `0x02` | 记录版本 |
 | 2 | `seq` | 采集帧序号 |
 | 3 | `status` | 传感器状态位 |
 | 4-5 | `temp`、`humi` | 温湿度 |
-| 6-9 | MQ135/MQ2 ADC | 高字节在前 |
-| 10 | `flame` | 火焰状态 |
-| 11 | `state` | 0 正常、1 预警、2 危险 |
-| 12-15 | `HAL_GetTick()` | 记录时刻 |
-| 16 | `g_threshold_profile` | 当前阈值档位 |
-| 17-18 | reserved | 预留 |
-| 19 | checksum | 前 19 字节累加和 |
+| 6-15 | MQ135/MQ2/rain/therm/therm_c10 | 高字节在前 |
+| 16-18 | `flame/rain_wet/therm_hot` | 传感器状态 |
+| 19 | `state` | 0 正常、1 预警、2 危险 |
+| 20-23 | `HAL_GetTick()` | 记录时刻 |
+| 24 | `g_threshold_profile` | 当前阈值档位 |
+| 25 | `Monitor_Muted()` | 蜂鸣器静音状态 |
+| 26-29 | `g_flash_record_count` | 写入前累计记录数 |
+| 30-31 | CRC16 | 覆盖前 30 字节 |
 
-Flash 地址超过 4096 字节后会回到 0 并重新擦除扇区。这是演示型循环记录，简单直观，但不是工业级 wear-leveling。
+sector 0 保存 metadata 游标；日志从 `0x001000` 写到 8 MB 末尾，满后回到日志区开头。它是固定记录环形日志，不是完整 wear-leveling 文件系统。
 
 ## 12. 串口调试链路
 
@@ -457,7 +461,7 @@ Flash 地址超过 4096 字节后会回到 0 并重新擦除扇区。这是演�
 flowchart LR
   P["printf()"] --> C["__io_putchar()"]
   C --> U["USART_SendByte(USART1)"]
-  U --> CH["CH340C USB-to-UART"]
+  U --> CH["USB-to-UART bridge"]
   CH --> PC["PC serial assistant\n115200 8N1"]
 ```
 
@@ -540,7 +544,7 @@ flowchart LR
 | 启动 | `Error_Handler()` | HAL 初始化/时钟配置失败 | 关闭中断并停在死循环 |
 | 启动 | `assert_failed()` | HAL full assert 机制 | 断言失败扩展入口 |
 | 时钟 | `SystemClock_Config()` | `main()` | 影响 USART、SPI、DWT、HAL tick |
-| 调试串口 | `Debug_USART1_Init()` | `App_Init()` | 让 `printf()` 可通过 CH340C 输出 |
+| 调试串口 | `Debug_USART1_Init()` | `App_Init()` | 让 `printf()` 可通过 USB 转串口输出 |
 | 调试串口 | `__io_putchar()` | `printf()` | `USART_SendByte(USART1)` |
 | 双板串口 | `Node_USART3_Init()` | `App_Init()` | 配置 USART3；显示节点开启 RXNE 中断 |
 | 双板串口 | `USART3_IRQHandler()` | USART3 RXNE/ORE 中断 | 写入 `g_node_rx_buf` |
@@ -595,7 +599,7 @@ flowchart LR
 可以按下面的节奏做项目介绍、演示讲解或技术复盘：
 
 1. 展示总体架构图：两块 STM32，一块采集，一块显示报警，USART3 连接。
-2. 讲为什么保留 USART1：PA9/PA10 默认接 CH340C，用来双串口调试。
+2. 讲为什么保留 USART1：参考设计把 PA9/PA10 用作 USB 转串口调试。
 3. 讲板 A 采集链路：DHT11 单总线、MQ ADC、火焰 DO、滑动平均、数据帧。
 4. 讲板 B 处理链路：中断环形缓冲、帧头同步、checksum、OLED/报警/按键。
 5. 讲鲁棒性：DHT11 错误标志、坏帧丢弃、节点离线、Flash 可选不影响主流程。

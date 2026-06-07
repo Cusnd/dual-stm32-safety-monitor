@@ -1,6 +1,6 @@
 # dual-stm32-safety-monitor
 
-> A two-node STM32F103C8T6 environmental safety monitor: one board samples sensors, the other displays data and raises local alarms.
+> A generic dual-node STM32F103C8T6 environmental safety monitor reference design: one MCU samples sensors, the other displays data, raises alarms, logs history, and streams JSON Lines.
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
@@ -11,107 +11,75 @@
 
 ## Overview
 
-This repository contains a dual-node embedded reference project built around two Wildfire STM32F103C8T6 dual-USB core boards.
-
-The project avoids ESP8266/Wi-Fi and instead demonstrates a clean dual-MCU architecture:
+This repository is a portable STM32F103C8T6 dual-board reference implementation. It is not tied to a specific vendor board: the documented pins are the current reference pin map, and the hardware docs explain what to check when moving to another STM32F103C8T6 board.
 
 - **Board A: SENSOR node**  
-  Samples DHT11, MQ135, MQ2, and flame sensor data.
+  Samples DHT11, MQ135, MQ2, rain, thermistor, and flame inputs, then sends a v2 binary frame over USART3.
 
 - **Board B: MONITOR node**  
-  Receives frames over USART3, updates an OLED UI, drives RGB/buzzer alarms, handles keys, and optionally logs history to W25Q64.
+  Receives USART3 frames, updates SSD1306 OLED pages, drives on-board RGB, external WS2813E RGB, and buzzer alarms, handles keys, logs to W25Q64, and prints JSON Lines over USART1.
 
 ```mermaid
 flowchart LR
   DHT11[DHT11<br/>PB12] --> A[Board A<br/>SENSOR]
   MQ135[MQ135 AO<br/>PA4 ADC1_CH4] --> A
   MQ2[MQ2 AO<br/>PA5 ADC1_CH5] --> A
+  Rain[Rain SIG<br/>PA6 ADC1_CH6] --> A
+  Therm[Thermistor AO/DO<br/>PA7 ADC1_CH7 + PB9] --> A
   Flame[Flame DO<br/>PB13] --> A
   A -- USART3 PB10/PB11<br/>115200 8N1 --> B[Board B<br/>MONITOR]
-  B --> OLED[OLED<br/>PB6/PB7]
+  B --> OLED[SSD1306 OLED<br/>PB6/PB7]
   B --> RGB[On-board RGB<br/>PA1/PA2/PA3]
   B --> Buzz[Buzzer<br/>PB8]
+  B --> ExtRGB[WS2813E<br/>PA6 TIM3_CH1]
   B --> Keys[K1/K2<br/>PA0/PC13]
-  B -. optional .-> Flash[W25Q64<br/>SPI2]
+  B -. optional .-> Flash[W25Q64<br/>SPI2 circular log]
 ```
 
 ## Highlights
 
-- One codebase builds into two firmware images through `APP_NODE_ROLE`.
-- USART1 `PA9/PA10` stays reserved for the on-board CH340C USB-to-UART debug channel.
-- USART3 `PB10/PB11` is used for direct board-to-board communication.
-- Monitor-side USART3 reception uses an interrupt ring buffer to avoid losing bytes during OLED refresh.
-- Lightweight frame protocol with header, payload length, sequence number, status byte, and checksum.
-- Board B prints JSON Lines on USART1 for the browser Web Serial dashboard while keeping the original debug logs.
-- OLED UI, RGB status light, buzzer alarm, button interaction, node-lost detection, and optional W25Q64 log records.
-- `.ioc` is updated to match the firmware pin map as closely as a single dual-role CubeMX file can.
+- One source tree builds two firmware images through `APP_NODE_ROLE`.
+- USART3 `PB10/PB11` is the direct board-to-board data link.
+- USART1 `PA9/PA10` is the debug/JSON output channel when the target board has a USB-UART bridge.
+- Protocol v2 carries DHT11, MQ135, MQ2, rain, thermistor, flame, status bits, and checksum.
+- Board B outputs browser-friendly JSON Lines while retaining human-readable logs.
+- W25Q64 uses sector 0 metadata and sector 1 through 8 MB as fixed 32-byte circular records.
+- WS2813E uses `PA6/TIM3_CH1` PWM + DMA, GRB order, default one LED.
 
-## Hardware
-
-Target board:
-
-- Wildfire STM32F103C8T6 dual-USB core board
-- MCU: STM32F103C8T6
-- Clock: 8 MHz HSE, 72 MHz SYSCLK
-
-Core module list:
+## Reference Pin Map
 
 | Role | Module | Pin |
 |---|---|---|
 | SENSOR | DHT11 DATA | `PB12` |
 | SENSOR | MQ135 AO | `PA4 / ADC1_CH4` |
 | SENSOR | MQ2 AO | `PA5 / ADC1_CH5` |
+| SENSOR | Rain SIG | `PA6 / ADC1_CH6` |
+| SENSOR | Thermistor AO | `PA7 / ADC1_CH7` |
+| SENSOR | Thermistor DO | `PB9`, active-low high-temperature trigger |
 | SENSOR | Flame DO | `PB13`, active-low |
 | MONITOR | OLED SCL/SDA | `PB6 / PB7`, software I2C |
-| MONITOR | RGB LED | `PA1 / PA2 / PA3`, active-low |
+| MONITOR | On-board RGB LED | `PA1 / PA2 / PA3`, active-low in the reference board wiring |
+| MONITOR | External WS2813E RGB | `PA6 / TIM3_CH1` |
 | MONITOR | Buzzer | `PB8`, active-high |
 | MONITOR | K1/K2 | `PA0 / PC13` |
-| Optional | W25Q64 | `PB12 CS`, `PB13 SCK`, `PB14 MISO`, `PB15 MOSI` |
+| MONITOR optional | W25Q64 | `PB12 CS`, `PB13 SCK`, `PB14 MISO`, `PB15 MOSI` |
 
-Full wiring notes are in [WIRING.md](WIRING.md).
+Full wiring notes are in [WIRING.md](WIRING.md). Per-chip and per-module hardware notes start at [docs/hardware/index.en.md](docs/hardware/index.en.md).
 
 ## Documentation
 
-- [WIRING.md](WIRING.md): hardware wiring guide.
-- [docs/BOARD_AND_CHIP_REFERENCE.en.md](docs/BOARD_AND_CHIP_REFERENCE.en.md) / [中文](docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md): board, expansion board, and STM32F103C8T6 chip reference.
-- [docs/MODULE_REFERENCE.en.md](docs/MODULE_REFERENCE.en.md) / [中文](docs/MODULE_REFERENCE.zh-CN.md): module reference for DHT11, MQ sensors, flame sensor, OLED, buzzer, and W25Q64.
-- [docs/CLION_CMAKE_GUIDE.en.md](docs/CLION_CMAKE_GUIDE.en.md) / [中文](docs/CLION_CMAKE_GUIDE.zh-CN.md): CLion + CMake Presets workflow guide.
-- [docs/FRONTEND_SERIAL_DASHBOARD.en.md](docs/FRONTEND_SERIAL_DASHBOARD.en.md) / [中文](docs/FRONTEND_SERIAL_DASHBOARD.zh-CN.md): Web Serial frontend dashboard guide.
-- [docs/FRONTEND_TEST_RECORD.en.md](docs/FRONTEND_TEST_RECORD.en.md) / [中文](docs/FRONTEND_TEST_RECORD.zh-CN.md): frontend and firmware verification record.
-- [docs/FUNCTION_GUIDE.md](docs/FUNCTION_GUIDE.md): bilingual beginner guide to the main firmware functions.
-- [docs/FUNCTION_DESIGN_WALKTHROUGH.en.md](docs/FUNCTION_DESIGN_WALKTHROUGH.en.md) / [中文](docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md): detailed function design, coordination logic, and diagram-driven walkthrough.
-- [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md): bilingual repository layout and modification guide.
-- [docs/presentation/dual_stm32_safety_monitor_slides.pdf](docs/presentation/dual_stm32_safety_monitor_slides.pdf): bilingual project presentation deck built with LaTeX Beamer.
+- [WIRING.md](WIRING.md): generic wiring guide and board-porting checklist.
+- [docs/hardware/index.en.md](docs/hardware/index.en.md) / [中文](docs/hardware/index.zh-CN.md): per-chip and per-module hardware references.
+- [docs/BOARD_AND_CHIP_REFERENCE.en.md](docs/BOARD_AND_CHIP_REFERENCE.en.md) / [中文](docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md): hardware index and board-level summary.
+- [docs/MODULE_REFERENCE.en.md](docs/MODULE_REFERENCE.en.md) / [中文](docs/MODULE_REFERENCE.zh-CN.md): module index and signal summary.
+- [docs/CLION_CMAKE_GUIDE.en.md](docs/CLION_CMAKE_GUIDE.en.md) / [中文](docs/CLION_CMAKE_GUIDE.zh-CN.md): CLion + CMake Presets workflow.
+- [docs/FRONTEND_SERIAL_DASHBOARD.en.md](docs/FRONTEND_SERIAL_DASHBOARD.en.md) / [中文](docs/FRONTEND_SERIAL_DASHBOARD.zh-CN.md): Web Serial dashboard guide.
+- [docs/FUNCTION_DESIGN_WALKTHROUGH.en.md](docs/FUNCTION_DESIGN_WALKTHROUGH.en.md) / [中文](docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md): firmware design walkthrough.
+- [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md): repository layout and edit guide.
 
-## Firmware Images
+## Build
 
-The same source file, [Core/Src/main.c](Core/Src/main.c), is compiled into two images:
-
-| Preset | Output | Burn to |
-|---|---|---|
-| `SensorDebug` | `build/SensorDebug/Fire_F103_sensor.hex` | Board A |
-| `MonitorDebug` | `build/MonitorDebug/Fire_F103_monitor.hex` | Board B |
-
-## CLion + CMake Build
-
-The primary workflow for this repository is **CLion + CMake Presets + Ninja + ARM GCC**. Open the repository root in CLion, then select the `SensorDebug` or `MonitorDebug` CMake profile.
-
-Requirements:
-
-- CLion
-- CMake
-- Ninja
-- `arm-none-eabi-gcc`
-- STM32CubeCLT or an equivalent ARM GCC toolchain
-
-CLion/CMake profiles:
-
-| Profile | Output | Burn to |
-|---|---|---|
-| `SensorDebug` | `build/SensorDebug/Fire_F103_sensor.hex` | Board A |
-| `MonitorDebug` | `build/MonitorDebug/Fire_F103_monitor.hex` | Board B |
-
-Command-line equivalent:
+The primary workflow is CLion + CMake Presets + Ninja + ARM GCC.
 
 ```powershell
 cmake --preset SensorDebug
@@ -121,88 +89,49 @@ cmake --preset MonitorDebug
 cmake --build --preset MonitorDebug
 ```
 
-See [docs/CLION_CMAKE_GUIDE.en.md](docs/CLION_CMAKE_GUIDE.en.md) for the detailed CLion workflow. `MDK-ARM/` is kept only as reference material, not as the primary development entry point.
+| Preset | Output | Burn to |
+|---|---|---|
+| `SensorDebug` | `build/SensorDebug/Fire_F103_sensor.hex` | Board A |
+| `MonitorDebug` | `build/MonitorDebug/Fire_F103_monitor.hex` | Board B |
+
+`Fire_F103.*` names are retained as legacy repository artifact names only; they are not a hardware-vendor requirement.
 
 ## Web Serial Dashboard
 
-Board B emits machine-readable JSON Lines on the USART1 CH340C debug port. Start the static frontend from the repository root:
+Board B emits machine-readable JSON Lines on USART1. Start the static frontend from the repository root:
 
 ```powershell
 python -m http.server 5173 -d frontend
 ```
 
-Open `http://localhost:5173` in Chrome or Edge, connect to the Board B CH340C serial port at `115200 8N1`, or use the replay serial button without hardware. See [docs/FRONTEND_SERIAL_DASHBOARD.en.md](docs/FRONTEND_SERIAL_DASHBOARD.en.md).
+Open `http://localhost:5173` in Chrome or Edge, connect to Board B's USB-UART serial port at `115200 8N1`, or use replay mode without hardware.
 
 ## Frame Protocol
 
-Board A sends one 13-byte frame per second. MQ readings and flame state are refreshed in every frame; DHT11 is refreshed at a greater-than-2-second interval required by the module manual, and skipped frames reuse the last temperature/humidity reading.
+Board A sends one 22-byte v2 frame per second. MQ, rain, thermistor, and flame values refresh every frame; DHT11 refreshes at a safe interval and skipped frames reuse the latest valid temperature/humidity.
 
 ```text
-AA 55 LEN TEMP HUMI MQ135_H MQ135_L MQ2_H MQ2_L FLAME SEQ STATUS CHECKSUM
+AA 55 LEN VER TEMP HUMI MQ135 MQ2 RAIN THERM THERM_C10 FLAME RAIN_WET THERM_HOT SEQ STATUS CHECKSUM
 ```
-
-Fields:
 
 | Field | Meaning |
 |---|---|
-| `AA 55` | Frame header |
-| `LEN` | Payload length, fixed to `9` |
-| `TEMP/HUMI` | DHT11 temperature and humidity |
-| `MQ135_H/L` | 12-bit ADC reading split into high/low bytes |
-| `MQ2_H/L` | 12-bit ADC reading split into high/low bytes |
-| `FLAME` | `1` if flame is detected |
-| `SEQ` | Rolling frame sequence number |
-| `STATUS` | `bit0 = DHT11 read error` |
+| `LEN` | Payload length, v2 fixed to `18` |
+| `VER` | Protocol version, fixed to `2` |
+| `THERM_C10` | Thermistor temperature in 0.1 deg C |
+| `STATUS` | `bit0=DHT error`, `bit1=thermistor DO hot`, `bit2=rain wet`, `bit3=thermistor ADC fault` |
 | `CHECKSUM` | Low 8 bits of `LEN + payload bytes` |
-
-## Alarm Logic
-
-| State | Condition | Output |
-|---|---|---|
-| Normal | No warning or danger | Green LED |
-| Warning | Air/smoke warning threshold or DHT11 error | Yellow LED |
-| Danger | Flame detected or smoke danger threshold | Red LED + fast buzzer |
-| Node lost | No valid sensor frame for 3 seconds | Blue LED + slow buzzer |
-
-K1 switches OLED pages.  
-K2 short press mutes the buzzer for 60 seconds.  
-K2 long press cycles threshold profiles.
-
-## Repository Layout
-
-```text
-.
-├── Core/                    Application and generated STM32 source
-├── Drivers/                 CMSIS and STM32F1 HAL drivers
-├── cmake/                   Toolchain and CubeMX CMake glue
-├── frontend/                Static Web Serial dashboard
-├── MDK-ARM/                 Keil reference files, not the CLion workflow
-├── Fire_F103.ioc            CubeMX pin/peripheral reference
-├── CMakeLists.txt           Top-level firmware build script
-├── CMakePresets.json        Sensor/monitor build presets
-├── WIRING.md                Hardware wiring guide
-├── README.md                This file
-├── README.zh-CN.md          Chinese README
-├── docs/                    Supplementary project documentation
-│   ├── FUNCTION_GUIDE.md
-│   ├── FUNCTION_DESIGN_WALKTHROUGH.en.md
-│   ├── FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md
-│   ├── PROJECT_STRUCTURE.md
-│   └── presentation/        LaTeX Beamer project presentation
-└── assets/                  Local notes/images, intentionally ignored
-```
 
 ## Demo Checklist
 
-1. Burn `Fire_F103_sensor.hex` to Board A.
-2. Burn `Fire_F103_monitor.hex` to Board B.
-3. Connect USART3 cross-wires and common GND.
-4. Open both CH340C serial ports at `115200 8N1`.
-5. Confirm Board A prints `[SENSOR]` every second; DHT11 temperature/humidity updates about every 3 seconds.
-6. Confirm Board B prints `[MONITOR] rx` and updates OLED.
-7. Disconnect the USART3 link and wait for `NODE LOST`.
-8. Trigger smoke/flame sensor changes and watch alarm state transitions.
+1. Burn the SENSOR image to Board A and the MONITOR image to Board B.
+2. Cross USART3 TX/RX and connect common GND.
+3. Open both debug serial ports at `115200 8N1`.
+4. Confirm Board B prints `[MONITOR] rx v2` and JSON Lines.
+5. Validate normal, warning, danger, and node-lost behavior on OLED, buzzer, RGB, external RGB, and W25Q64 log count.
 
 ## Notes
 
-- MQ sensor values are raw ADC readings and need calibration for real ppm measurement.
+- MQ values are raw ADC counts and need site calibration for ppm-like interpretation.
+- All ADC inputs must stay within 0 to VDDA.
+- WS2813E uses 5 V LED power; add data level shifting from 3.3 V to 5 V when possible.

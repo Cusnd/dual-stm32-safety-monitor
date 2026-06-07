@@ -10,8 +10,8 @@ The project uses two STM32F103C8T6 boards as a small distributed embedded system
 
 | Node | Role | Main responsibility | Key functions |
 |---|---|---|---|
-| Board A | SENSOR | Read DHT11, MQ135, MQ2, and flame sensor; build a frame; send it through USART3 | `Sensor_App_Run()`, `DHT11_Read()`, `ADC1_ReadChannel()`, `Frame_Encode()`, `Sensor_SendFrame()` |
-| Board B | MONITOR | Receive and verify frames; update OLED; drive RGB/buzzer alarm; handle buttons; optionally log to flash | `Monitor_App_Run()`, `Monitor_ProcessRx()`, `Frame_Decode()`, `Monitor_UpdateAlarm()`, `Monitor_UpdateDisplay()`, `Flash_LogFrame()` |
+| Board A | SENSOR | Read DHT11, MQ135, MQ2, rain, thermistor, and flame inputs; build a v2 frame; send it through USART3 | `Sensor_App_Run()`, `DHT11_Read()`, `ADC1_ReadChannel()`, `Frame_Encode()`, `Sensor_SendFrame()` |
+| Board B | MONITOR | Receive and verify frames; update OLED; drive RGB/buzzer/external RGB alarm; handle buttons; optionally log to flash | `Monitor_App_Run()`, `Monitor_ProcessRx()`, `Frame_Decode()`, `Monitor_UpdateAlarm()`, `Monitor_UpdateDisplay()`, `Flash_LogFrame()` |
 
 ```mermaid
 flowchart LR
@@ -55,7 +55,7 @@ flowchart TD
 | Role macros | `APP_ROLE_SENSOR`, `APP_ROLE_MONITOR` | Keep role checks readable in preprocessor blocks |
 | CMake mapping | `CMakeLists.txt` | Convert `SENSOR` and `MONITOR` presets into `APP_NODE_ROLE=1/2` |
 | Unused-function handling | `APP_MAYBE_UNUSED` | Suppress warnings when a role-specific helper is not called in the other firmware |
-| Output names | `Fire_F103_sensor`, `Fire_F103_monitor` | Keep the two firmware products separate |
+| Output names | `Fire_F103_sensor`, `Fire_F103_monitor` | Legacy artifact names retained to keep the two firmware products separate |
 
 ## 3. Startup Path
 
@@ -83,14 +83,14 @@ flowchart TD
 | `MX_GPIO_Init()` | Initialize shared board resources | Configures K1/K2 and the active-low RGB LED pins |
 | `App_Init()` | Separate common initialization from role-specific initialization | Always initializes USART1/USART3, then initializes only the current node's peripherals |
 | `Delay_Init()` | Enable DWT cycle counter | Enables `Delay_Us()` for DHT11 timing and software I2C |
-| `Debug_USART1_Init()` | Keep USART1 as the CH340C debug channel | Supports `printf()` through `__io_putchar()` |
+| `Debug_USART1_Init()` | Keep USART1 as the USB-UART debug channel | Supports `printf()` through `__io_putchar()` |
 | `Node_USART3_Init()` | Configure the board-to-board link | Board B also enables `USART3_IRQHandler()` |
 | `Error_Handler()` | Stop safely on unrecoverable initialization errors | Used when HAL clock configuration fails |
 | `assert_failed()` | Hook for full assert builds | Can later be extended to print file and line through USART1 |
 
 ## 4. Board A Sampling Pipeline
 
-Board A sends one data frame every second inside `Sensor_App_Run()`. MQ135, MQ2, and flame state are refreshed in every frame; DHT11 is refreshed at the safe greater-than-2-second interval required by the module manual, and skipped frames reuse the last temperature/humidity reading.
+Board A sends one data frame every second inside `Sensor_App_Run()`. MQ135, MQ2, rain, thermistor, and flame state are refreshed in every frame; DHT11 is refreshed at a safe greater-than-2-second interval, and skipped frames reuse the last temperature/humidity reading.
 
 ```mermaid
 flowchart TD
@@ -98,7 +98,8 @@ flowchart TD
   T -->|"No"| L
   T -->|"Yes"| A["ADC1_ReadChannel(4)\nMQ135"]
   A --> B["ADC1_ReadChannel(5)\nMQ2"]
-  B --> C{"2100 ms since last DHT11 read?"}
+  B --> B2["ADC1_ReadChannel(6/7)\nRain + thermistor"]
+  B2 --> C{"2100 ms since last DHT11 read?"}
   C -->|"Yes"| C1["DHT11_Read()"]
   C -->|"No"| D["Reuse last temp/humi"]
   C1 --> D
@@ -113,9 +114,9 @@ flowchart TD
 
 | Function | Role in the chain | Design details |
 |---|---|---|
-| `Sensor_GPIO_Init()` | Pin preparation | PA4/PA5 analog inputs for MQ modules, PB13 input for flame, PB12 open-drain for DHT11 |
+| `Sensor_GPIO_Init()` | Pin preparation | PA4/PA5/PA6/PA7 analog inputs for MQ, rain, and thermistor AO; PB9/PB13 digital inputs; PB12 open-drain DHT11 |
 | `ADC1_Init_Custom()` | ADC preparation | Enables ADC1, selects safe ADC clock, calibrates before sampling |
-| `ADC1_ReadChannel()` | MQ analog sampling | Performs one conversion and returns a raw 12-bit reading |
+| `ADC1_ReadChannel()` | Analog sampling | Performs one conversion and returns a raw 12-bit reading |
 | `DHT11_Read()` | Temperature/humidity sampling | Runs the full DHT11 timing protocol and checksum verification at the DHT11-safe refresh interval |
 | `Sensor_SendFrame()` | Transport handoff | Encodes one `SensorFrame` and sends it on USART3 |
 
@@ -175,7 +176,7 @@ flowchart LR
 | Function | Design role |
 |---|---|
 | `Frame_Checksum()` | Adds `LEN + payload` and returns the low 8 bits |
-| `Frame_Encode()` | Converts `SensorFrame` to the fixed 13-byte wire format |
+| `Frame_Encode()` | Converts `SensorFrame` to the fixed 22-byte v2 wire format |
 | `Frame_Decode()` | Verifies header, length, checksum, then rebuilds `SensorFrame` |
 | `Monitor_ProcessRx()` | Re-synchronizes on `AA 55` and rejects bad frames |
 
@@ -184,13 +185,15 @@ Frame bytes:
 | Index | Field | Meaning |
 |---|---|---|
 | 0-1 | `AA 55` | Header |
-| 2 | `LEN` | Fixed payload length `9` |
-| 3-4 | `TEMP/HUMI` | DHT11 values |
-| 5-8 | `MQ135/MQ2` | ADC readings, high byte first |
-| 9 | `FLAME` | `1` when flame is detected |
-| 10 | `SEQ` | Rolling sequence number |
-| 11 | `STATUS` | bit0 = DHT11 error |
-| 12 | `CHECKSUM` | Low 8 bits of `LEN + payload` |
+| 2 | `LEN` | Fixed v2 payload length `18` |
+| 3 | `VER` | Protocol version `2` |
+| 4-5 | `TEMP/HUMI` | DHT11 values |
+| 6-13 | `MQ135/MQ2/RAIN/THERM` | ADC readings, high byte first |
+| 14-15 | `THERM_C10` | Thermistor temperature in 0.1 deg C |
+| 16-18 | `FLAME/RAIN_WET/THERM_HOT` | Boolean sensor flags |
+| 19 | `SEQ` | Rolling sequence number |
+| 20 | `STATUS` | bit0 DHT error, bit1 therm hot, bit2 rain wet, bit3 therm ADC fault |
+| 21 | `CHECKSUM` | Low 8 bits of `LEN + payload` |
 
 ## 7. Board B Receive Design
 
@@ -206,7 +209,7 @@ flowchart TD
   DROP --> PROC
   PROC --> SYNC{"AA 55 found?"}
   SYNC -->|"No"| WAIT["wait for more bytes"]
-  SYNC -->|"Yes"| LEN["collect 13 bytes"]
+  SYNC -->|"Yes"| LEN["collect FRAME_TOTAL_LEN bytes"]
   LEN --> DEC["Frame_Decode()"]
   DEC --> OK{"valid?"}
   OK -->|"Yes"| UPDATE["update g_latest_frame\ng_last_rx_ms"]
@@ -309,11 +312,15 @@ flowchart TD
   ID --> OK{"valid chip?"}
   OK -->|"No"| OFF["g_flash_present = 0"]
   OK -->|"Yes"| ON["g_flash_present = 1"]
-  ON --> ERASE["Flash_SectorErase(0)"]
-  ERASE --> RUN["Monitor_App_Run()"]
-  RUN --> LOG{"10 s elapsed?"}
+  ON --> META["Flash_LoadMetadata()\nsector 0 cursor"]
+  META --> RUN["Monitor_App_Run()"]
+  RUN --> LOG{"10 s elapsed\nor state changed?"}
   LOG -->|"Yes"| REC["Flash_LogFrame()"]
-  REC --> PP["Flash_PageProgram()"]
+  REC --> WRAP{"sector boundary?"}
+  WRAP -->|"Yes"| ERASE["Flash_SectorErase(log sector)"]
+  WRAP -->|"No"| PP
+  ERASE --> PP["Flash_PageProgram()\n32-byte record"]
+  PP --> META2["Flash_WriteMetadata()"]
   LOG -->|"No"| RUN
 ```
 
@@ -325,8 +332,9 @@ flowchart TD
 | `Flash_WriteEnable()` | Enable write/erase operations |
 | `Flash_SectorErase()` | Erase one 4 KB sector |
 | `Flash_PageProgram()` | Write one short record |
-| `Flash_Init_Custom()` | Detect whether a compatible flash chip is present |
-| `Flash_LogFrame()` | Save sensor values, alarm state, tick time, profile, and checksum |
+| `Flash_Init_Custom()` | Detect a compatible chip and restore circular-log cursor metadata |
+| `Flash_LoadMetadata()` / `Flash_WriteMetadata()` | Restore and append sector 0 cursor entries |
+| `Flash_LogFrame()` | Save one fixed 32-byte v2 circular-log record |
 
 ## 13. Debug Logging
 
@@ -334,11 +342,11 @@ flowchart TD
 flowchart LR
   P["printf()"] --> C["__io_putchar()"]
   C --> U["USART_SendByte(USART1)"]
-  U --> CH["CH340C USB-to-UART"]
+  U --> CH["USB-to-UART bridge"]
   CH --> PC["serial terminal\n115200 8N1"]
 ```
 
-USART1 is reserved for debug logs because `PA9/PA10` are already routed to the on-board CH340C bridge.
+USART1 is reserved for debug logs because the reference design routes `PA9/PA10` to a USB-UART bridge.
 
 ## 14. Shared State Variables
 
@@ -383,7 +391,7 @@ The flow is intentionally modular: sampling, framing, reception, alarm decisions
 | RX buffer full | `USART3_IRQHandler()` | Drop newest byte instead of blocking inside ISR |
 | Board A disconnected | `Monitor_NodeLost()` | OLED shows `NODE LOST`; blue LED and slow buzzer |
 | Flash not connected | `Flash_Init_Custom()` | `g_flash_present=0`; core monitoring still works |
-| Flash sector full | `Flash_LogFrame()` | Erase sector 0 and wrap address back to zero |
+| Flash log wrap | `Flash_LogFrame()` | Keep metadata in sector 0 and wrap 32-byte records across the 8 MB log area |
 | Clock configuration failure | `SystemClock_Config()` | `Error_Handler()` disables interrupts and stops |
 | Full assert failure | `assert_failed()` | Hook kept for future debug output |
 
@@ -392,9 +400,9 @@ The flow is intentionally modular: sampling, framing, reception, alarm decisions
 A concise project walkthrough can follow this order:
 
 1. Show the dual-node architecture: Board A samples, Board B displays and alarms, USART3 links them.
-2. Explain why USART1 is reserved for CH340C debug logs.
-3. Walk through Board A: DHT11 timing, MQ ADC sampling, flame input, smoothing, frame encoding.
-4. Walk through Board B: interrupt ring buffer, frame resynchronization, checksum, OLED/alarm/button logic.
-5. Explain robustness: DHT11 error flag, bad-frame rejection, node-lost detection, optional flash logging.
+2. Explain why USART1 is reserved for USB-UART debug logs.
+3. Walk through Board A: DHT11 timing, MQ/rain/thermistor ADC sampling, flame input, smoothing, frame encoding.
+4. Walk through Board B: interrupt ring buffer, frame resynchronization, checksum, OLED/alarm/button/external RGB logic.
+5. Explain robustness: DHT11/thermistor status bits, bad-frame rejection, node-lost detection, circular flash logging.
 
 The project can be summarized as a small dual-MCU safety-monitoring system with clear node roles, a defined serial protocol, cooperative scheduling, and explicit recovery behavior.

@@ -27,6 +27,8 @@ const strings = {
     humidity: "湿度",
     mq135: "MQ135",
     mq2: "MQ2",
+    rain: "雨量",
+    therm: "热敏",
     flame: "火焰",
     alarm: "告警",
     trend: "最近趋势",
@@ -34,6 +36,11 @@ const strings = {
     profile: "阈值档位",
     mute: "静音",
     flash: "Flash",
+    flashRecords: "Flash 记录",
+    rainWet: "雨量触发",
+    thermHot: "热敏高温",
+    externalRgb: "外置 RGB",
+    schema: "Schema",
     yes: "是",
     no: "否",
     aiInsights: "AI 洞察",
@@ -68,6 +75,8 @@ const strings = {
     humidity: "Humidity",
     mq135: "MQ135",
     mq2: "MQ2",
+    rain: "Rain",
+    therm: "Therm",
     flame: "Flame",
     alarm: "Alarm",
     trend: "Recent trend",
@@ -75,6 +84,11 @@ const strings = {
     profile: "Profile",
     mute: "Mute",
     flash: "Flash",
+    flashRecords: "Flash records",
+    rainWet: "Rain wet",
+    thermHot: "Therm hot",
+    externalRgb: "External RGB",
+    schema: "Schema",
     yes: "Yes",
     no: "No",
     aiInsights: "AI Insights",
@@ -142,6 +156,8 @@ const metricModel = [
   { key: "humidityPct", label: "humidity", unit: "%", className: "metric-humidity" },
   { key: "mq135Raw", label: "mq135", unit: "raw", className: "metric-air" },
   { key: "mq2Raw", label: "mq2", unit: "raw", className: "metric-smoke" },
+  { key: "rainRaw", label: "rain", unit: "raw", className: "metric-rain" },
+  { key: "thermC10", label: "therm", unit: "C", className: "metric-therm" },
   { key: "flame", label: "flame", unit: "", className: "metric-flame" },
   { key: "alarm", label: "alarm", unit: "", className: "metric-alarm" },
 ];
@@ -227,6 +243,12 @@ function valueFor(metric) {
   if (!latest) {
     return "--";
   }
+  if (latest[metric.key] === null || latest[metric.key] === undefined) {
+    return "--";
+  }
+  if (metric.key === "thermC10") {
+    return Number.isFinite(latest.thermC10) ? (latest.thermC10 / 10).toFixed(1) : "--";
+  }
   if (metric.key === "flame") {
     return latest.flame ? t("yes") : t("no");
   }
@@ -254,6 +276,11 @@ function renderMetrics() {
     [t("profile"), latest ? latest.thresholdProfile : "--"],
     [t("mute"), latest ? (latest.mute ? t("yes") : t("no")) : "--"],
     [t("flash"), latest ? (latest.flashReady ? "OK" : "--") : "--"],
+    [t("flashRecords"), latest && latest.flashRecords !== null ? latest.flashRecords : "--"],
+    [t("rainWet"), latest ? (latest.rainWet ? t("yes") : t("no")) : "--"],
+    [t("thermHot"), latest ? (latest.thermHot ? t("yes") : t("no")) : "--"],
+    [t("externalRgb"), latest ? (latest.externalRgb ? "OK" : "--") : "--"],
+    [t("schema"), latest ? `v${latest.schemaVersion}` : "--"],
     ["SEQ", latest ? latest.seq : "--"],
     ["STATUS", latest ? `0x${latest.status.toString(16).padStart(2, "0").toUpperCase()}` : "--"],
     ["TICK", latest ? `${latest.tickMs} ms` : "--"],
@@ -349,23 +376,32 @@ function drawChart() {
   drawSeries(ctx, rect, padding, "humidityPct", "#2563eb", 0, 100);
   drawSeries(ctx, rect, padding, "mq2Raw", "#dc6803", 0, 4095);
   drawSeries(ctx, rect, padding, "mq135Raw", "#7c3aed", 0, 4095);
+  drawSeries(ctx, rect, padding, "rainRaw", "#0891b2", 0, 4095);
+  drawSeries(ctx, rect, padding, "thermC10", "#be123c", 0, 900);
 
   ctx.font = "12px system-ui, sans-serif";
   drawLegend(ctx, padding.left + 8, padding.top + 4, "#0f766e", "T");
   drawLegend(ctx, padding.left + 54, padding.top + 4, "#2563eb", "H");
   drawLegend(ctx, padding.left + 102, padding.top + 4, "#dc6803", "MQ2");
   drawLegend(ctx, padding.left + 166, padding.top + 4, "#7c3aed", "MQ135");
+  drawLegend(ctx, padding.left + 244, padding.top + 4, "#0891b2", "RAIN");
+  drawLegend(ctx, padding.left + 326, padding.top + 4, "#be123c", "N");
 }
 
 function drawSeries(ctx, rect, padding, key, color, min, max) {
   const width = rect.width - padding.left - padding.right;
   const height = rect.height - padding.top - padding.bottom;
+  const points = history.filter((item) => Number.isFinite(item[key]));
+
+  if (points.length < 2) {
+    return;
+  }
 
   ctx.strokeStyle = color;
   ctx.lineWidth = 2;
   ctx.beginPath();
-  history.forEach((item, index) => {
-    const x = padding.left + (index / Math.max(1, history.length - 1)) * width;
+  points.forEach((item, index) => {
+    const x = padding.left + (index / Math.max(1, points.length - 1)) * width;
     const ratio = Math.max(0, Math.min(1, (item[key] - min) / (max - min)));
     const y = padding.top + height - ratio * height;
     if (index === 0) {

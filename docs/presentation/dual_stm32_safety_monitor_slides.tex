@@ -130,7 +130,7 @@
     \toprule
     目标 & 设计要求 & 对应实现 \\
     \midrule
-    稳定采集 & 每秒发帧，MQ 每帧采样，DHT11 安全间隔刷新 & \code{Sensor_App_Run()} + 指数滑动平均 \\
+    稳定采集 & 每秒发帧，MQ/雨量/热敏每帧采样，DHT11 安全间隔刷新 & \code{Sensor_App_Run()} + 整数滑动平均 \\
     可靠通信 & 串口帧能识别错位和噪声 & \code{AA 55} 帧头 + 长度 + checksum \\
     本地报警 & 无需云端即可及时提示风险 & RGB LED + 蜂鸣器 + OLED 状态页 \\
     易演示 & 可观察、可断线恢复、可用按键交互 & USART1 日志、NODE LOST、K1/K2 \\
@@ -144,10 +144,12 @@
     \begin{column}{0.5\textwidth}
       \begin{block}{板 A：SENSOR}
         \begin{itemize}
-          \item STM32F103C8T6 双 USB 核心板
+          \item 通用 STM32F103C8T6 参考板
           \item DHT11：温湿度
           \item MQ135：空气质量模拟量
           \item MQ2：烟雾模拟量
+          \item 雨量：模拟量
+          \item 热敏：AO + DO
           \item 火焰模块：数字触发
         \end{itemize}
       \end{block}
@@ -157,6 +159,7 @@
         \begin{itemize}
           \item OLED：状态与数值显示
           \item 板载 RGB：状态灯
+          \item WS2813E：外置状态灯
           \item 蜂鸣器：声音报警
           \item K1/K2：切页、静音、阈值档位
           \item W25Q64：可选历史记录
@@ -172,7 +175,7 @@
     \toprule
     引脚 & 板载连接 & 本项目处理方式 \\
     \midrule
-    PA9 / PA10 & CH340C USB 转串口 & 保留 USART1 做 \code{printf} 调试 \\
+    PA9 / PA10 & USB 转串口参考通道 & 保留 USART1 做 \code{printf}/JSON 调试 \\
     PA11 / PA12 & USB Device & 保留，不分配外设 \\
     PA13 / PA14 & SWD 下载调试 & 保留给调试器 \\
     PA1 / PA2 / PA3 & 板载 RGB LED & 板 B 用于报警状态 \\
@@ -193,23 +196,29 @@
     \node[greenbox] (dht) {DHT11\\PB12};
     \node[greenbox, below=of dht] (mq135) {MQ135 AO\\PA4};
     \node[greenbox, below=of mq135] (mq2) {MQ2 AO\\PA5};
-    \node[greenbox, below=of mq2] (flame) {Flame DO\\PB13};
+    \node[greenbox, below=of mq2] (rain) {Rain SIG\\PA6};
+    \node[greenbox, below=of rain] (therm) {Therm AO/DO\\PA7/PB9};
+    \node[greenbox, below=of therm] (flame) {Flame DO\\PB13};
     \node[nodebox, right=18mm of mq135, minimum width=26mm, minimum height=32mm] (a) {Board A\\SENSOR\\采集节点};
     \node[nodebox, right=34mm of a, minimum width=28mm, minimum height=32mm] (b) {Board B\\MONITOR\\显示报警};
     \node[amberbox, right=16mm of b] (oled) {OLED\\PB6/PB7};
     \node[amberbox, above=of oled] (rgb) {RGB LED\\PA1/2/3};
     \node[amberbox, below=of oled] (buzz) {Buzzer\\PB8};
     \node[amberbox, below=of buzz] (keys) {K1/K2\\PA0/PC13};
+    \node[amberbox, below=of keys] (ergb) {WS2813E\\PA6};
 
     \draw[arrow] (dht.east) -- (a.west);
     \draw[arrow] (mq135.east) -- (a.west);
     \draw[arrow] (mq2.east) -- (a.west);
+    \draw[arrow] (rain.east) -- (a.west);
+    \draw[arrow] (therm.east) -- (a.west);
     \draw[arrow] (flame.east) -- (a.west);
     \draw[bus] (a.east) -- node[above]{USART3 115200 8N1} node[below]{PB10/PB11 cross} (b.west);
     \draw[arrow] (b.east) -- (oled.west);
     \draw[arrow] (b.east) |- (rgb.west);
     \draw[arrow] (b.east) |- (buzz.west);
     \draw[arrow] (b.east) |- (keys.west);
+    \draw[arrow] (b.east) |- (ergb.west);
   \end{tikzpicture}%
   }
 \end{frame}
@@ -362,13 +371,14 @@
     Index & Field & Meaning \\
     \midrule
     0--1 & \code{AA 55} & Frame header, used for resynchronization \\
-    2 & \code{LEN} & Payload length, fixed to 9 \\
-    3--4 & \code{TEMP/HUMI} & DHT11 temperature and humidity \\
-    5--8 & \code{MQ135/MQ2} & ADC readings, high byte first \\
-    9 & \code{FLAME} & 1 means flame detected \\
-    10 & \code{SEQ} & Rolling frame number \\
-    11 & \code{STATUS} & bit0 = DHT11 error \\
-    12 & \code{CHECKSUM} & Low 8 bits of LEN + payload \\
+    2 & \code{LEN} & Payload length, fixed to 18 for v2 \\
+    3 & \code{VER} & Protocol version, fixed to 2 \\
+    4--5 & \code{TEMP/HUMI} & DHT11 temperature and humidity \\
+    6--15 & \code{MQ/RAIN/THERM} & ADC readings and thermistor 0.1 deg C value \\
+    16--18 & \code{FLAGS} & Flame, rain wet, thermistor hot \\
+    19 & \code{SEQ} & Rolling frame number \\
+    20 & \code{STATUS} & DHT/rain/thermistor status bits \\
+    21 & \code{CHECKSUM} & Low 8 bits of LEN + payload \\
     \bottomrule
   \end{tabularx}
   \vspace{0.4em}
@@ -591,8 +601,8 @@
     \begin{column}{0.5\textwidth}
       \begin{block}{单节点测试}
         \begin{itemize}
-          \item 板 A：DHT11、MQ135、MQ2、火焰模块。
-          \item 板 B：OLED、RGB、蜂鸣器、K1/K2。
+          \item 板 A：DHT11、MQ135、MQ2、雨量、热敏、火焰模块。
+          \item 板 B：OLED、RGB、WS2813E、蜂鸣器、K1/K2。
           \item USART1 日志：\code{115200 8N1}。
         \end{itemize}
       \end{block}
@@ -602,7 +612,7 @@
         \begin{itemize}
           \item USART3 双板通信。
           \item 断线后 \code{NODE LOST}。
-          \item 烟雾/火焰触发报警。
+          \item 烟雾/火焰/雨量/高温触发报警。
           \item 任意节点重启恢复。
         \end{itemize}
       \end{block}
@@ -614,9 +624,9 @@
   \begin{enumerate}
     \item 烧录 \code{Fire_F103_sensor.hex} 到板 A，烧录 \code{Fire_F103_monitor.hex} 到板 B。
     \item 连接 USART3：A PB10 到 B PB11，B PB10 到 A PB11，并共地。
-    \item 打开两个 CH340C 串口，确认板 A \code{[SENSOR]} 日志和板 B \code{[MONITOR] rx} 日志。
+    \item 打开两个 USB 转串口，确认板 A \code{[SENSOR]} 日志和板 B \code{[MONITOR] rx v2} 日志。
     \item 展示 OLED 监测页和参数页，按 K1 切换页面。
-    \item 触发烟雾/火焰模块，观察状态灯和蜂鸣器变化。
+    \item 触发烟雾、雨量、热敏或火焰模块，观察状态灯和蜂鸣器变化。
     \item 短按 K2 展示静音，长按 K2 展示阈值档位切换。
     \item 断开 USART3，展示 \code{NODE LOST} 自动检测。
   \end{enumerate}

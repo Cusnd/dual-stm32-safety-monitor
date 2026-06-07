@@ -1,96 +1,72 @@
 # Web Serial Frontend Dashboard
 
-[中文](FRONTEND_SERIAL_DASHBOARD.zh-CN.md) | [Back to README](../README.md)
+[中文](FRONTEND_SERIAL_DASHBOARD.zh-CN.md) | [README](../README.md)
 
 ## Purpose
 
-`frontend/` is a browser dashboard for the Board B MONITOR node. Board B still receives Board A binary sensor frames over USART3, and now also prints JSON Lines on the USART1 debug port. The PC sees the on-board CH340C as a serial port, and Chrome or Edge can read it through the Web Serial API.
-
-Data path:
+`frontend/` is the browser dashboard for Board B. Board B receives binary v2 sensor frames over USART3 and prints JSON Lines on USART1. A PC reads the USB-UART serial port through Chrome or Edge Web Serial.
 
 ```text
-Board A SENSOR --USART3 PB10/PB11--> Board B MONITOR --USART1 PA9/PA10 + CH340C--> Browser Web Serial
+Board A SENSOR --USART3 PB10/PB11--> Board B MONITOR --USART1 PA9/PA10 + USB-UART--> Browser Web Serial
 ```
 
 ## Firmware Output
 
-After Board B decodes a valid sensor frame, it keeps the original human-readable log:
+After Board B decodes a valid v2 frame, it prints a human-readable log:
 
 ```text
-[MONITOR] rx seq=31 t=26 h=54 mq135=1020 mq2=860 flame=0 status=0x00
+[MONITOR] rx v2 seq=31 t=26 h=54 mq135=1020 mq2=860 rain=980 therm=32.5C flame=0 status=0x00
 ```
 
-The firmware then prints one JSON line:
+The next line is machine-readable JSON:
 
 ```json
-{"type":"sensor","seq":31,"tickMs":123456,"tempC":26,"humidityPct":54,"mq135Raw":1020,"mq2Raw":860,"flame":0,"status":0,"alarm":"normal","thresholdProfile":0,"mute":0,"flashReady":1}
+{"type":"sensor","schemaVersion":2,"seq":31,"tickMs":123456,"tempC":26,"humidityPct":54,"mq135Raw":1020,"mq2Raw":860,"rainRaw":980,"thermRaw":1660,"thermC10":325,"rainWet":0,"thermHot":0,"flame":0,"status":0,"alarm":"normal","thresholdProfile":0,"mute":0,"flashReady":1,"flashRecords":42,"externalRgb":1}
 ```
-
-Fields:
 
 | Field | Meaning |
 |---|---|
-| `type` | Always `sensor` |
-| `seq` | Rolling frame sequence number from Board A |
-| `tickMs` | Board B `HAL_GetTick()` when the JSON line is printed |
-| `tempC` / `humidityPct` | DHT11 temperature and humidity |
-| `mq135Raw` / `mq2Raw` | Raw 12-bit ADC values |
+| `schemaVersion` | JSON schema version; missing means old v1, current firmware emits v2 |
+| `seq`, `tickMs` | Sensor sequence and Board B tick |
+| `tempC`, `humidityPct` | DHT11 values |
+| `mq135Raw`, `mq2Raw` | Raw 12-bit ADC values |
+| `rainRaw`, `rainWet` | Rain ADC and wet state |
+| `thermRaw`, `thermC10`, `thermHot` | Thermistor ADC, 0.1 deg C temperature, and DO high-temperature state |
 | `flame` | `1` when flame is detected |
-| `status` | Frame status byte, `bit0 = DHT11 read error` |
+| `status` | `bit0=DHT error`, `bit1=thermistor DO hot`, `bit2=rain wet`, `bit3=thermistor ADC fault` |
 | `alarm` | `normal`, `warn`, `danger`, or `node_lost` |
-| `thresholdProfile` | Threshold profile selected by K2 long press |
-| `mute` | Whether the buzzer is inside the K2 short-press mute window |
-| `flashReady` | Whether Board B detected a usable W25Q64 |
+| `thresholdProfile`, `mute` | Active threshold profile and buzzer mute state |
+| `flashReady`, `flashRecords` | W25Q64 availability and cumulative record count |
+| `externalRgb` | Whether the WS2813E driver initialized |
 
-## Running The Frontend
+The parser accepts v1 and v2. v1 records show missing v2-only values as `--`.
 
-From the repository root:
+## Running
 
 ```powershell
 python -m http.server 5173 -d frontend
 ```
 
-Open Chrome or Edge at:
-
-```text
-http://localhost:5173
-```
-
-Press "Connect serial" and select the CH340C port for Board B. Serial settings are fixed at `115200 8N1`.
+Open `http://localhost:5173`, connect to Board B at `115200 8N1`, or use replay mode.
 
 ## Behavior
 
-- The page parses JSON Lines that start with `{` and ignores ordinary `[MONITOR]` or `[SENSOR]` logs.
-- The dashboard shows temperature, humidity, MQ135, MQ2, flame, alarm, threshold profile, mute, and Flash state.
-- The trend chart keeps the latest 80 valid sensor records.
-- If no valid JSON arrives for more than 3 seconds, the page shows a stale state while keeping the last valid values visible.
-- "Start replay" streams `frontend/fixtures/sample-serial.log` line by line through the same parser path used by real Web Serial.
-- The AI Insights panel shows risk level, evidence, trend, and recommended action using the local rules provider.
-- The User Chat panel answers safety, alarm, MQ2, and troubleshooting questions from the current sensor snapshot.
-- Web Serial is mainly available in Chrome and Edge; other browsers show an unsupported-browser state.
+- Only lines starting with `{` are parsed as JSON; `[MONITOR]` and `[SENSOR]` logs are ignored.
+- Dashboard cards show temperature, humidity, MQ135, MQ2, rain, thermistor, flame, and alarm.
+- Trend chart keeps the latest 80 valid records and draws T/H/MQ2/MQ135/RAIN/thermistor series.
+- AI Insights use local rules for MQ, rain, thermistor, flame, DHT, stale data, and node-lost conditions.
+- User Chat answers safety, alarm, MQ2, rain, thermistor, and troubleshooting questions from the current snapshot.
 
-## AI Integration Stub
+## Build Relationship
 
-The current frontend does not call DeepSeek directly and does not store an API key. When DeepSeek V4-flash is connected later, use a local or hosted backend proxy such as:
-
-```text
-frontend LocalInsightProvider / DeepSeekProvider
-        -> POST /api/ai/chat
-        -> DeepSeek-compatible API
-```
-
-The frontend already has an `AiProvider` interface: `analyze(snapshot)` and `chat({ messages, snapshot, locale })`. A later integration should replace the provider without changing the sensor JSON Lines format or the dashboard layout.
-
-## CLion/CMake Relationship
-
-The frontend does not replace the CLion + CMake workflow. Firmware is still built with the existing presets:
+The frontend does not replace the firmware workflow:
 
 ```powershell
-cmake --preset MonitorDebug
-cmake --build --preset MonitorDebug
-
 cmake --preset SensorDebug
 cmake --build --preset SensorDebug
+
+cmake --preset MonitorDebug
+cmake --build --preset MonitorDebug
 ```
 
-The flashing targets are unchanged: `Fire_F103_sensor.hex` goes to Board A, and `Fire_F103_monitor.hex` goes to Board B. The frontend reads only Board B USART1 debug output and does not occupy the USART3 board-to-board link.
+The `Fire_F103_sensor.hex` and `Fire_F103_monitor.hex` names are retained as legacy artifact names.

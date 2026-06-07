@@ -1,6 +1,6 @@
 # Project Structure / 项目结构
 
-[English README](../README.md) | [中文 README](../README.zh-CN.md) | [CLion+CMake](CLION_CMAKE_GUIDE.en.md) / [中文](CLION_CMAKE_GUIDE.zh-CN.md) | [Board/Chip](BOARD_AND_CHIP_REFERENCE.en.md) / [中文](BOARD_AND_CHIP_REFERENCE.zh-CN.md) | [Modules](MODULE_REFERENCE.en.md) / [中文](MODULE_REFERENCE.zh-CN.md) | [Function Guide / 函数说明](FUNCTION_GUIDE.md) | [Detailed Design](FUNCTION_DESIGN_WALKTHROUGH.en.md) | [详细设计](FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md)
+[English README](../README.md) | [中文 README](../README.zh-CN.md) | [Hardware](hardware/index.en.md) / [硬件](hardware/index.zh-CN.md) | [CLion+CMake](CLION_CMAKE_GUIDE.en.md) / [中文](CLION_CMAKE_GUIDE.zh-CN.md) | [Function Guide / 函数说明](FUNCTION_GUIDE.md) | [Detailed Design](FUNCTION_DESIGN_WALKTHROUGH.en.md) | [详细设计](FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md)
 
 This document explains how the repository is organized and where beginners should make changes.  
 本文档说明仓库目录结构，以及初学者修改功能时应该从哪里入手。
@@ -20,6 +20,7 @@ This document explains how the repository is organized and where beginners shoul
 ├── README.md                English project README
 ├── README.zh-CN.md          Chinese project README
 ├── docs/                    Supplementary project documentation
+│   ├── hardware/            Per-chip and per-module hardware references
 │   ├── FUNCTION_GUIDE.md
 │   ├── FUNCTION_DESIGN_WALKTHROUGH.en.md
 │   ├── FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md
@@ -46,6 +47,7 @@ This document explains how the repository is organized and where beginners shoul
 ├── README.md                英文项目说明
 ├── README.zh-CN.md          中文项目说明
 ├── docs/                    扩展项目文档
+│   ├── hardware/            按芯片/模块拆分的硬件资料
 │   ├── FUNCTION_GUIDE.md
 │   ├── FUNCTION_DESIGN_WALKTHROUGH.en.md
 │   ├── FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md
@@ -140,15 +142,15 @@ CLion 配置和 profile 选择常见问题见 [CLION_CMAKE_GUIDE.zh-CN.md](CLION
 | Path / 路径 | Purpose / 用途 |
 |---|---|
 | `MDK-ARM/` | Keil reference files kept for compatibility only. / 仅为兼容和参考保留的 Keil 文件。 |
-| `Fire_F103.ioc` | CubeMX reference pin/peripheral configuration. / CubeMX 引脚和外设参考配置。 |
+| `Fire_F103.ioc` | CubeMX reference pin/peripheral configuration; legacy file name only. / CubeMX 引脚和外设参考配置；文件名为历史命名。 |
 
 This repository is maintained and verified through CLion + CMake Presets. Do not use `MDK-ARM/` as the main project entry.
 
 本仓库按 CLion + CMake Presets 维护和验证，不要把 `MDK-ARM/` 当作主工程入口。
 
-`Fire_F103.ioc` is a single reference file for a dual-role firmware. Some pins are reused differently by SENSOR and MONITOR builds, so treat CubeMX regeneration as a controlled maintenance step and review generated GPIO code before committing it.
+`Fire_F103.ioc` is a single reference file for a dual-role firmware. The name is retained for compatibility with the existing repository. Some pins are reused differently by SENSOR and MONITOR builds, so treat CubeMX regeneration as a controlled maintenance step and review generated GPIO code before committing it.
 
-`Fire_F103.ioc` 是双角色固件共用的一份参考配置。部分引脚在 SENSOR 与 MONITOR 角色下复用方式不同，因此用 CubeMX 重新生成代码时要当作受控维护步骤，并在提交前复核生成的 GPIO 代码。
+`Fire_F103.ioc` 是双角色固件共用的一份参考配置，文件名仅为兼容当前仓库历史命名。部分引脚在 SENSOR 与 MONITOR 角色下复用方式不同，因此用 CubeMX 重新生成代码时要当作受控维护步骤，并在提交前复核生成的 GPIO 代码。
 
 ## Documentation Files / 文档文件
 
@@ -157,9 +159,10 @@ This repository is maintained and verified through CLion + CMake Presets. Do not
 | `README.md` | English overview, build steps, protocol, and demo checklist. / 英文项目概览、构建步骤、协议和演示清单。 |
 | `README.zh-CN.md` | Chinese overview for project presentation and quick reading. / 中文项目概览，适合项目展示和快速阅读。 |
 | `WIRING.md` | Pin wiring guide for both boards and optional modules. / 两块板和可选模块的接线说明。 |
+| `docs/hardware/index.en.md` / `docs/hardware/index.zh-CN.md` | Per-chip and per-module hardware reference index. / 按芯片和模块拆分的硬件资料入口。 |
 | `docs/CLION_CMAKE_GUIDE.en.md` / `docs/CLION_CMAKE_GUIDE.zh-CN.md` | CLion + CMake Presets workflow guide. / CLion + CMake Presets 开发流程说明。 |
-| `docs/BOARD_AND_CHIP_REFERENCE.en.md` / `docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md` | Board, expansion board, chip, circuit, and pin reference. / 开发板、扩展板、芯片、电路和引脚说明清单。 |
-| `docs/MODULE_REFERENCE.en.md` / `docs/MODULE_REFERENCE.zh-CN.md` | External-module reference and wiring rationale. / 外接模块说明清单和接线原因说明。 |
+| `docs/BOARD_AND_CHIP_REFERENCE.en.md` / `docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md` | Board-level hardware index and summary. / 板级硬件索引和总览。 |
+| `docs/MODULE_REFERENCE.en.md` / `docs/MODULE_REFERENCE.zh-CN.md` | Module-level hardware index and signal summary. / 模块级硬件索引和信号总览。 |
 | `docs/FUNCTION_GUIDE.md` | Beginner-level function map. / 面向初学者的函数说明。 |
 | `docs/FUNCTION_DESIGN_WALKTHROUGH.en.md` | English detailed function design and coordination walkthrough with diagrams. / 英文功能函数设计与协作脉络讲解。 |
 | `docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md` | Chinese detailed function design and coordination walkthrough with diagrams. / 中文功能函数设计与协作脉络讲解。 |

@@ -4,12 +4,12 @@
 
 ## 目标
 
-`frontend/` 是板 B MONITOR 节点的浏览器实时看板。板 B 继续通过 USART3 接收板 A 的二进制传感器帧，同时在 USART1 调试口额外输出 JSON Lines。电脑通过板载 CH340C 识别出串口后，Chrome 或 Edge 可以用 Web Serial API 读取这些 JSON Lines 并刷新页面。
+`frontend/` 是板 B MONITOR 节点的浏览器实时看板。板 B 继续通过 USART3 接收板 A 的二进制传感器帧，同时在 USART1 调试口额外输出 JSON Lines。电脑通过目标板的 USB 转串口识别出串口后，Chrome 或 Edge 可以用 Web Serial API 读取这些 JSON Lines 并刷新页面。
 
 数据链路：
 
 ```text
-Board A SENSOR --USART3 PB10/PB11--> Board B MONITOR --USART1 PA9/PA10 + CH340C--> Browser Web Serial
+Board A SENSOR --USART3 PB10/PB11--> Board B MONITOR --USART1 PA9/PA10 + USB-UART--> Browser Web Serial
 ```
 
 ## 固件输出
@@ -17,13 +17,13 @@ Board A SENSOR --USART3 PB10/PB11--> Board B MONITOR --USART1 PA9/PA10 + CH340C-
 板 B 收到有效采集帧后，会保留原有人工可读日志：
 
 ```text
-[MONITOR] rx seq=31 t=26 h=54 mq135=1020 mq2=860 flame=0 status=0x00
+[MONITOR] rx v2 seq=31 t=26 h=54 mq135=1020 mq2=860 rain=980 therm=32.5C flame=0 status=0x00
 ```
 
 同一位置会紧跟一行 JSON：
 
 ```json
-{"type":"sensor","seq":31,"tickMs":123456,"tempC":26,"humidityPct":54,"mq135Raw":1020,"mq2Raw":860,"flame":0,"status":0,"alarm":"normal","thresholdProfile":0,"mute":0,"flashReady":1}
+{"type":"sensor","schemaVersion":2,"seq":31,"tickMs":123456,"tempC":26,"humidityPct":54,"mq135Raw":1020,"mq2Raw":860,"rainRaw":980,"thermRaw":1660,"thermC10":325,"rainWet":0,"thermHot":0,"flame":0,"status":0,"alarm":"normal","thresholdProfile":0,"mute":0,"flashReady":1,"flashRecords":42,"externalRgb":1}
 ```
 
 字段说明：
@@ -31,16 +31,26 @@ Board A SENSOR --USART3 PB10/PB11--> Board B MONITOR --USART1 PA9/PA10 + CH340C-
 | 字段 | 含义 |
 |---|---|
 | `type` | 固定为 `sensor` |
+| `schemaVersion` | JSON schema 版本；旧固件缺省视为 v1，新固件为 v2 |
 | `seq` | 板 A 上报的循环帧序号 |
 | `tickMs` | 板 B 输出 JSON 时的 `HAL_GetTick()` |
 | `tempC` / `humidityPct` | DHT11 温湿度 |
 | `mq135Raw` / `mq2Raw` | MQ135、MQ2 的 12 位 ADC 原始值 |
+| `rainRaw` | 雨量模块 12 位 ADC 原始值，v2 字段 |
+| `thermRaw` | 热敏 AO 12 位 ADC 原始值，v2 字段 |
+| `thermC10` | 热敏查表换算温度，单位 0.1°C，v2 字段 |
+| `rainWet` | `1` 表示雨量湿态触发，v2 字段 |
+| `thermHot` | `1` 表示热敏 DO 高温触发，v2 字段 |
 | `flame` | `1` 表示检测到火焰 |
-| `status` | 板间帧状态位，`bit0 = DHT11 读取异常` |
+| `status` | `bit0=DHT11异常`，`bit1=热敏DO高温`，`bit2=雨量触发`，`bit3=热敏ADC异常` |
 | `alarm` | `normal`、`warn`、`danger` 或 `node_lost` |
 | `thresholdProfile` | K2 长按切换的阈值档位 |
 | `mute` | 蜂鸣器是否处于 K2 短按静音窗口 |
 | `flashReady` | 板 B 是否检测到可用 W25Q64 |
+| `flashRecords` | W25Q64 环形日志累计记录数，v2 字段 |
+| `externalRgb` | 外置 WS2813E 驱动是否初始化成功，v2 字段 |
+
+前端 parser 同时兼容 v1/v2：没有 `schemaVersion` 的旧 JSON Lines 会按 v1 解析，新字段显示为 `--`；v2 数据则要求雨量、热敏、Flash 记录数和外置 RGB 字段齐全。
 
 ## 前端运行
 
@@ -56,17 +66,17 @@ python -m http.server 5173 -d frontend
 http://localhost:5173
 ```
 
-点击“连接串口”，选择板 B 对应的 CH340C 串口。串口参数固定为 `115200 8N1`。
+点击“连接串口”，选择板 B 对应的 USB 转串口。串口参数固定为 `115200 8N1`。
 
 ## 页面行为
 
 - 页面只解析以 `{` 开头的 JSON Lines，自动忽略 `[MONITOR]`、`[SENSOR]` 等普通日志。
-- 首页显示温度、湿度、MQ135、MQ2、火焰状态、综合告警、阈值档位、静音和 Flash 状态。
-- 趋势图保留最近 80 条有效传感器记录。
+- 首页显示温度、湿度、MQ135、MQ2、雨量、热敏温度、火焰状态、综合告警、阈值档位、静音、Flash 状态、Flash 记录数和外置 RGB 状态。
+- 趋势图保留最近 80 条有效传感器记录，包含 T/H/MQ2/MQ135/RAIN/热敏曲线；旧 v1 数据缺少的新曲线会自动跳过。
 - 若超过 3 秒没有收到有效 JSON，页面会显示“数据已超时”，但保留最后一次有效值。
 - “开始模拟”会按串口节奏逐行回放 `frontend/fixtures/sample-serial.log`，和真实 Web Serial 使用同一条解析链路。
-- “AI 洞察”区域基于最近数据给出风险等级、主要证据、趋势判断和建议动作；当前版本使用本地规则 provider。
-- “用户对话”区域会用当前传感器快照回答安全、报警原因、MQ2 和排查类问题。
+- “AI 洞察”区域基于最近数据给出风险等级、主要证据、趋势判断和建议动作；当前版本使用本地规则 provider，并纳入雨量湿态、热敏高温和热敏 ADC 异常。
+- “用户对话”区域会用当前传感器快照回答安全、报警原因、MQ2、雨量、热敏和排查类问题。
 - 当前 Web Serial 主要支持 Chrome/Edge；其他浏览器会显示不支持提示。
 
 ## AI 接入预留
@@ -93,4 +103,4 @@ cmake --preset SensorDebug
 cmake --build --preset SensorDebug
 ```
 
-烧录关系不变：`Fire_F103_sensor.hex` 烧到板 A，`Fire_F103_monitor.hex` 烧到板 B。前端只读取板 B 的 USART1 调试口，不占用 USART3 板间通信。
+烧录关系不变：`Fire_F103_sensor.hex` 烧到板 A，`Fire_F103_monitor.hex` 烧到板 B；这些名称只是仓库历史产物名。前端只读取板 B 的 USART1 调试口，不占用 USART3 板间通信。

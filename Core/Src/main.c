@@ -39,19 +39,23 @@
 #define APP_NODE_ROLE APP_ROLE_MONITOR
 #endif
 
-/* Sensor-to-monitor frame:
- * AA 55 | LEN | TEMP HUMI MQ135_H MQ135_L MQ2_H MQ2_L FLAME SEQ STATUS | SUM
+/* Sensor-to-monitor frame v2:
+ * AA 55 | LEN | VER TEMP HUMI MQ135 MQ2 RAIN THERM THERM_C10 FLAGS SEQ STATUS | SUM
  * The checksum is the low 8 bits of LEN plus all payload bytes.
- * 采集节点到显示节点的数据帧：帧头为 AA 55，最后 1 字节为长度和负载累加
- * 后的低 8 位校验和，用于过滤串口噪声或错位数据。
+ * 采集节点到显示节点的数据帧 v2：帧头为 AA 55，最后 1 字节为长度和负载
+ * 累加后的低 8 位校验和，用于过滤串口噪声或错位数据。
  */
 #define FRAME_HEAD0       0xAAu
 #define FRAME_HEAD1       0x55u
-#define FRAME_PAYLOAD_LEN 9u
+#define FRAME_VERSION     2u
+#define FRAME_PAYLOAD_LEN 18u
 #define FRAME_TOTAL_LEN   (2u + 1u + FRAME_PAYLOAD_LEN + 1u)
 #define NODE_RX_BUF_SIZE  64u
 
-#define STATUS_DHT_ERROR  0x01u
+#define STATUS_DHT_ERROR      0x01u
+#define STATUS_THERM_HOT_DO   0x02u
+#define STATUS_RAIN_WET       0x04u
+#define STATUS_THERM_ADC_ERR  0x08u
 
 /* Timing values are expressed in milliseconds and compared with HAL_GetTick().
  * The code avoids long blocking delays in the monitor so serial reception,
@@ -66,9 +70,32 @@
 #define ALARM_PERIOD_MS   100u
 #define NODE_TIMEOUT_MS   5000u
 #define MUTE_TIME_MS      60000u
+#define FLASH_LOG_PERIOD_MS 10000u
 
 #define OLED_WIDTH_PIXELS 128u
 #define OLED_FONT_WIDTH   6u
+
+#define RAIN_WET_ADC_DEFAULT       1400u
+#define THERM_WARN_C10_DEFAULT     450
+#define THERM_DANGER_C10_DEFAULT   700
+
+#define FLASH_SIZE_BYTES       0x800000u
+#define FLASH_SECTOR_SIZE      4096u
+#define FLASH_META_ENTRY_SIZE  16u
+#define FLASH_META_MAGIC0      0x4Du
+#define FLASH_META_MAGIC1      0x32u
+#define FLASH_RECORD_MAGIC     0xE2u
+#define FLASH_LOG_START_ADDR   FLASH_SECTOR_SIZE
+#define FLASH_LOG_RECORD_SIZE  32u
+#define FLASH_LOG_END_ADDR     FLASH_SIZE_BYTES
+
+#define WS2813_LED_COUNT       1u
+#define WS2813_BITS_PER_LED    24u
+#define WS2813_RESET_SLOTS     48u
+#define WS2813_BUFFER_LEN      ((WS2813_LED_COUNT * WS2813_BITS_PER_LED) + WS2813_RESET_SLOTS)
+#define WS2813_TIMER_PERIOD    89u
+#define WS2813_CODE0_CCR       26u
+#define WS2813_CODE1_CCR       52u
 
 /* Sensor-node pins.  PA9/PA10 are intentionally not used here because this
  * board already routes them to the CH340C USB-to-UART bridge for USART1 debug.
@@ -79,6 +106,8 @@
 #define DHT11_PIN         GPIO_PIN_12
 #define FLAME_PORT        GPIOB
 #define FLAME_PIN         GPIO_PIN_13
+#define THERM_DO_PORT     GPIOB
+#define THERM_DO_PIN      GPIO_PIN_9
 
 /* Monitor-node pins.  OLED uses bit-banged I2C so PB6/PB7 stay as GPIO
  * open-drain outputs; the optional W25Q64 uses SPI2 when present.
@@ -92,6 +121,8 @@
 #define BUZZER_PIN        GPIO_PIN_8
 #define FLASH_CS_PORT     GPIOB
 #define FLASH_CS_PIN      GPIO_PIN_12
+#define EXT_RGB_PORT      GPIOA
+#define EXT_RGB_PIN       GPIO_PIN_6
 
 typedef struct
 {
@@ -99,7 +130,12 @@ typedef struct
   uint8_t humi;
   uint16_t mq135_adc;
   uint16_t mq2_adc;
+  uint16_t rain_adc;
+  uint16_t therm_adc;
+  int16_t therm_c10;
   uint8_t flame;
+  uint8_t rain_wet;
+  uint8_t therm_hot;
   uint8_t seq;
   uint8_t status;
 } SensorFrame;
@@ -114,13 +150,42 @@ typedef struct
   uint16_t air_warn;
   uint16_t smoke_warn;
   uint16_t smoke_danger;
+  uint16_t rain_wet;
+  int16_t therm_warn_c10;
+  int16_t therm_danger_c10;
 } AlarmThresholds;
 
 static const AlarmThresholds k_threshold_profiles[] =
 {
-  {2200u, 1800u, 2800u},
-  {1800u, 1400u, 2400u},
-  {2600u, 2200u, 3300u},
+  {2200u, 1800u, 2800u, RAIN_WET_ADC_DEFAULT, THERM_WARN_C10_DEFAULT, THERM_DANGER_C10_DEFAULT},
+  {1800u, 1400u, 2400u, 1200u, 400, 650},
+  {2600u, 2200u, 3300u, 1800u, 500, 750},
+};
+
+typedef struct
+{
+  uint16_t adc;
+  int16_t c10;
+} NtcTablePoint;
+
+static const NtcTablePoint k_ntc_table[] =
+{
+  {128u, 1293},
+  {384u, 866},
+  {640u, 685},
+  {896u, 567},
+  {1152u, 477},
+  {1408u, 403},
+  {1664u, 338},
+  {1920u, 278},
+  {2176u, 222},
+  {2432u, 167},
+  {2688u, 111},
+  {2944u, 53},
+  {3200u, -11},
+  {3456u, -87},
+  {3712u, -186},
+  {3968u, -364},
 };
 
 static SensorFrame g_latest_frame;
@@ -131,9 +196,16 @@ static uint8_t g_threshold_profile = 0u;
 static uint32_t g_mute_until_ms = 0u;
 static uint8_t g_flash_present = 0u;
 static uint32_t g_flash_log_addr = 0u;
+static uint32_t g_flash_record_count = 0u;
+static uint32_t g_flash_meta_addr = 0u;
+static uint8_t g_ext_rgb_ready = 0u;
+static uint8_t g_ext_rgb_last_r = 0xFFu;
+static uint8_t g_ext_rgb_last_g = 0xFFu;
+static uint8_t g_ext_rgb_last_b = 0xFFu;
 static volatile uint8_t g_node_rx_buf[NODE_RX_BUF_SIZE];
 static volatile uint8_t g_node_rx_head = 0u;
 static volatile uint8_t g_node_rx_tail = 0u;
+static uint16_t g_ws2813_dma_buf[WS2813_BUFFER_LEN];
 
 void SystemClock_Config(void);
 static void App_Init(void);
@@ -149,6 +221,8 @@ static void Delay_Us(uint32_t us);
 static void Sensor_GPIO_Init(void);
 static void ADC1_Init_Custom(void);
 static uint16_t ADC1_ReadChannel(uint8_t channel);
+static uint16_t Sensor_Filter(uint16_t previous, uint16_t sample, uint8_t valid);
+static int16_t Thermistor_AdcToC10(uint16_t adc, uint8_t *valid);
 static uint8_t DHT11_Read(uint8_t *temp, uint8_t *humi);
 static void Sensor_SendFrame(const SensorFrame *frame);
 static uint8_t Frame_Checksum(const uint8_t *data, uint8_t len);
@@ -168,12 +242,22 @@ static const char *Monitor_AlarmState(void);
 static void Monitor_PrintFrontendJson(const SensorFrame *frame);
 static void LED_Set(uint8_t red, uint8_t green, uint8_t blue);
 static void Buzzer_Set(uint8_t on);
+static void WS2813_Init_Custom(void);
+static void WS2813_SetColor(uint8_t red, uint8_t green, uint8_t blue);
+static void WS2813_FillBuffer(uint8_t red, uint8_t green, uint8_t blue);
+static void WS2813_SendBuffer(uint16_t len);
 static void OLED_Init_Custom(void);
 static APP_MAYBE_UNUSED void OLED_Clear(void);
 static void OLED_SetCursor(uint8_t page, uint8_t col);
 static void OLED_PrintLine(uint8_t page, const char *text);
 static void Flash_Init_Custom(void);
 static void Flash_LogFrame(const SensorFrame *frame, uint8_t state);
+static void Flash_ReadData(uint32_t addr, uint8_t *data, uint16_t len);
+static void Flash_WriteMetadata(void);
+static uint8_t Flash_LoadMetadata(void);
+static uint16_t Flash_Crc16(const uint8_t *data, uint8_t len);
+static void Flash_U32ToBytes(uint8_t *out, uint32_t value);
+static uint32_t Flash_BytesToU32(const uint8_t *in);
 
 int main(void)
 {
@@ -232,6 +316,8 @@ static APP_MAYBE_UNUSED void Sensor_App_Run(void)
   uint8_t avg_valid = 0u;
   uint16_t mq135_avg = 0u;
   uint16_t mq2_avg = 0u;
+  uint16_t rain_avg = 0u;
+  uint16_t therm_avg = 0u;
 
   while (1)
   {
@@ -241,6 +327,11 @@ static APP_MAYBE_UNUSED void Sensor_App_Run(void)
       SensorFrame frame;
       const uint16_t mq135_raw = ADC1_ReadChannel(4u);
       const uint16_t mq2_raw = ADC1_ReadChannel(5u);
+      const uint16_t rain_raw = ADC1_ReadChannel(6u);
+      const uint16_t therm_raw = ADC1_ReadChannel(7u);
+      uint8_t therm_adc_ok = 0u;
+      const uint8_t therm_do_hot =
+        (HAL_GPIO_ReadPin(THERM_DO_PORT, THERM_DO_PIN) == GPIO_PIN_RESET) ? 1u : 0u;
 
       /* DHT11 requires more than 2 seconds between conversions.  Frames still
        * go out once per second; skipped frames reuse the last valid reading.
@@ -262,28 +353,41 @@ static APP_MAYBE_UNUSED void Sensor_App_Run(void)
       {
         mq135_avg = mq135_raw;
         mq2_avg = mq2_raw;
+        rain_avg = rain_raw;
+        therm_avg = therm_raw;
         avg_valid = 1u;
       }
       else
       {
-        mq135_avg = (uint16_t)(((uint32_t)mq135_avg * 3u + mq135_raw) / 4u);
-        mq2_avg = (uint16_t)(((uint32_t)mq2_avg * 3u + mq2_raw) / 4u);
+        mq135_avg = Sensor_Filter(mq135_avg, mq135_raw, avg_valid);
+        mq2_avg = Sensor_Filter(mq2_avg, mq2_raw, avg_valid);
+        rain_avg = Sensor_Filter(rain_avg, rain_raw, avg_valid);
+        therm_avg = Sensor_Filter(therm_avg, therm_raw, avg_valid);
       }
 
       frame.temp = temp;
       frame.humi = humi;
       frame.mq135_adc = mq135_avg;
       frame.mq2_adc = mq2_avg;
+      frame.rain_adc = rain_avg;
+      frame.therm_adc = therm_avg;
+      frame.therm_c10 = Thermistor_AdcToC10(therm_avg, &therm_adc_ok);
       /* The flame module used by this project is treated as active-low.
        * 本项目按低电平有效处理火焰模块：读到 RESET 表示触发。
        */
       frame.flame = (HAL_GPIO_ReadPin(FLAME_PORT, FLAME_PIN) == GPIO_PIN_RESET) ? 1u : 0u;
+      frame.rain_wet = (rain_avg >= RAIN_WET_ADC_DEFAULT) ? 1u : 0u;
+      frame.therm_hot = therm_do_hot;
       frame.seq = seq++;
       frame.status = dht_ok ? 0u : STATUS_DHT_ERROR;
+      frame.status |= therm_do_hot ? STATUS_THERM_HOT_DO : 0u;
+      frame.status |= frame.rain_wet ? STATUS_RAIN_WET : 0u;
+      frame.status |= therm_adc_ok ? 0u : STATUS_THERM_ADC_ERR;
 
       Sensor_SendFrame(&frame);
-      printf("[SENSOR] seq=%u t=%u h=%u mq135=%u mq2=%u flame=%u status=0x%02X\r\n",
+      printf("[SENSOR] seq=%u t=%u h=%u mq135=%u mq2=%u rain=%u therm=%d.%dC flame=%u status=0x%02X\r\n",
              frame.seq, frame.temp, frame.humi, frame.mq135_adc, frame.mq2_adc,
+             frame.rain_adc, frame.therm_c10 / 10, frame.therm_c10 < 0 ? -(frame.therm_c10 % 10) : (frame.therm_c10 % 10),
              frame.flame, frame.status);
 
       last_sensor_ms = now;
@@ -296,6 +400,7 @@ static APP_MAYBE_UNUSED void Monitor_App_Run(void)
   uint32_t last_ui_ms = 0u;
   uint32_t last_alarm_ms = 0u;
   uint32_t last_log_ms = 0u;
+  uint8_t last_logged_state = 0xFFu;
 
   /* Give the sensor link a startup grace period before reporting NODE LOST.
    * The OLED shows WAIT SENSOR until the first valid frame arrives or the
@@ -330,12 +435,15 @@ static APP_MAYBE_UNUSED void Monitor_App_Run(void)
       last_ui_ms = now;
     }
 
-    if ((g_flash_present != 0u) && !Monitor_NodeLost() &&
-        ((uint32_t)(now - last_log_ms) >= 10000u))
+    if ((g_flash_present != 0u) && (g_have_rx != 0u) && !Monitor_NodeLost())
     {
       const uint8_t state = Monitor_Danger() ? 2u : (Monitor_Warn() ? 1u : 0u);
-      Flash_LogFrame(&g_latest_frame, state);
-      last_log_ms = now;
+      if ((state != last_logged_state) || ((uint32_t)(now - last_log_ms) >= FLASH_LOG_PERIOD_MS))
+      {
+        Flash_LogFrame(&g_latest_frame, state);
+        last_log_ms = now;
+        last_logged_state = state;
+      }
     }
   }
 }
@@ -370,6 +478,7 @@ static void Node_USART3_Init(void)
 {
   GPIO_InitTypeDef gpio = {0};
 
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_USART3_CLK_ENABLE();
 
@@ -497,12 +606,15 @@ static APP_MAYBE_UNUSED void Sensor_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
-  /* MQ135 and MQ2 are read from analog outputs, so PA4/PA5 must be analog
-   * inputs before ADC1 samples channels 4 and 5.
-   * MQ135 和 MQ2 读取模拟输出，因此 PA4/PA5 必须先配置成模拟输入，再由
-   * ADC1 采样通道 4 和 5。
+  /* MQ135/MQ2 plus the rain and thermistor modules are all analog inputs.
+   * Some single-module demo wiring places rain/thermistor on PA4/PA5 too, but
+   * this reference design already uses those pins for MQ sensors, so PA6/PA7
+   * are used here.
+   * MQ135/MQ2 以及雨量、热敏 AO 都是模拟输入。部分单模块演示接线也会把
+   * 雨量/热敏放在 PA4/PA5，但本参考设计已把这两个脚给 MQ 模块，因此新增
+   * 两路使用 PA6/PA7。
    */
-  gpio.Pin = GPIO_PIN_4 | GPIO_PIN_5;
+  gpio.Pin = GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7;
   gpio.Mode = GPIO_MODE_ANALOG;
   HAL_GPIO_Init(GPIOA, &gpio);
 
@@ -510,6 +622,11 @@ static APP_MAYBE_UNUSED void Sensor_GPIO_Init(void)
   gpio.Mode = GPIO_MODE_INPUT;
   gpio.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(FLAME_PORT, &gpio);
+
+  gpio.Pin = THERM_DO_PIN;
+  gpio.Mode = GPIO_MODE_INPUT;
+  gpio.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(THERM_DO_PORT, &gpio);
 
   gpio.Pin = DHT11_PIN;
   gpio.Mode = GPIO_MODE_OUTPUT_OD;
@@ -534,7 +651,7 @@ static APP_MAYBE_UNUSED void ADC1_Init_Custom(void)
 
   ADC1->CR1 = 0u;
   ADC1->CR2 = ADC_CR2_ADON | ADC_CR2_EXTTRIG | ADC_CR2_EXTSEL;
-  ADC1->SMPR2 |= ADC_SMPR2_SMP4 | ADC_SMPR2_SMP5;
+  ADC1->SMPR2 |= ADC_SMPR2_SMP4 | ADC_SMPR2_SMP5 | ADC_SMPR2_SMP6 | ADC_SMPR2_SMP7;
   Delay_Us(10u);
 
   ADC1->CR2 |= ADC_CR2_RSTCAL;
@@ -557,6 +674,51 @@ static uint16_t ADC1_ReadChannel(uint8_t channel)
   {
   }
   return (uint16_t)(ADC1->DR & 0x0FFFu);
+}
+
+static uint16_t Sensor_Filter(uint16_t previous, uint16_t sample, uint8_t valid)
+{
+  if (valid == 0u)
+  {
+    return sample;
+  }
+  return (uint16_t)(((uint32_t)previous * 3u + sample) / 4u);
+}
+
+static int16_t Thermistor_AdcToC10(uint16_t adc, uint8_t *valid)
+{
+  const uint8_t table_count = (uint8_t)(sizeof(k_ntc_table) / sizeof(k_ntc_table[0]));
+
+  if ((adc <= 8u) || (adc >= 4088u))
+  {
+    *valid = 0u;
+    return 0;
+  }
+
+  *valid = 1u;
+  if (adc <= k_ntc_table[0].adc)
+  {
+    return k_ntc_table[0].c10;
+  }
+  if (adc >= k_ntc_table[table_count - 1u].adc)
+  {
+    return k_ntc_table[table_count - 1u].c10;
+  }
+
+  for (uint8_t i = 0u; i < (uint8_t)(table_count - 1u); i++)
+  {
+    const NtcTablePoint *lo = &k_ntc_table[i];
+    const NtcTablePoint *hi = &k_ntc_table[i + 1u];
+    if ((adc >= lo->adc) && (adc <= hi->adc))
+    {
+      const int32_t adc_span = (int32_t)hi->adc - (int32_t)lo->adc;
+      const int32_t temp_span = (int32_t)hi->c10 - (int32_t)lo->c10;
+      const int32_t offset = (int32_t)adc - (int32_t)lo->adc;
+      return (int16_t)((int32_t)lo->c10 + ((temp_span * offset) / adc_span));
+    }
+  }
+
+  return 0;
 }
 
 static void DHT11_SetOutput(void)
@@ -673,16 +835,25 @@ static uint8_t Frame_Encode(const SensorFrame *frame, uint8_t out[FRAME_TOTAL_LE
   out[0] = FRAME_HEAD0;
   out[1] = FRAME_HEAD1;
   out[2] = FRAME_PAYLOAD_LEN;
-  out[3] = frame->temp;
-  out[4] = frame->humi;
-  out[5] = (uint8_t)(frame->mq135_adc >> 8);
-  out[6] = (uint8_t)(frame->mq135_adc & 0xFFu);
-  out[7] = (uint8_t)(frame->mq2_adc >> 8);
-  out[8] = (uint8_t)(frame->mq2_adc & 0xFFu);
-  out[9] = frame->flame;
-  out[10] = frame->seq;
-  out[11] = frame->status;
-  out[12] = Frame_Checksum(&out[2], (uint8_t)(1u + FRAME_PAYLOAD_LEN));
+  out[3] = FRAME_VERSION;
+  out[4] = frame->temp;
+  out[5] = frame->humi;
+  out[6] = (uint8_t)(frame->mq135_adc >> 8);
+  out[7] = (uint8_t)(frame->mq135_adc & 0xFFu);
+  out[8] = (uint8_t)(frame->mq2_adc >> 8);
+  out[9] = (uint8_t)(frame->mq2_adc & 0xFFu);
+  out[10] = (uint8_t)(frame->rain_adc >> 8);
+  out[11] = (uint8_t)(frame->rain_adc & 0xFFu);
+  out[12] = (uint8_t)(frame->therm_adc >> 8);
+  out[13] = (uint8_t)(frame->therm_adc & 0xFFu);
+  out[14] = (uint8_t)((uint16_t)frame->therm_c10 >> 8);
+  out[15] = (uint8_t)((uint16_t)frame->therm_c10 & 0xFFu);
+  out[16] = frame->flame;
+  out[17] = frame->rain_wet;
+  out[18] = frame->therm_hot;
+  out[19] = frame->seq;
+  out[20] = frame->status;
+  out[21] = Frame_Checksum(&out[2], (uint8_t)(1u + FRAME_PAYLOAD_LEN));
   return FRAME_TOTAL_LEN;
 }
 
@@ -693,22 +864,28 @@ static uint8_t Frame_Decode(const uint8_t in[FRAME_TOTAL_LEN], SensorFrame *fram
    * 更新显示数据前先检查帧头、固定长度和校验和；错误帧会被丢弃，避免串口
    * 噪声污染 OLED 数据。
    */
-  if ((in[0] != FRAME_HEAD0) || (in[1] != FRAME_HEAD1) || (in[2] != FRAME_PAYLOAD_LEN))
+  if ((in[0] != FRAME_HEAD0) || (in[1] != FRAME_HEAD1) ||
+      (in[2] != FRAME_PAYLOAD_LEN) || (in[3] != FRAME_VERSION))
   {
     return 0u;
   }
-  if (Frame_Checksum(&in[2], (uint8_t)(1u + FRAME_PAYLOAD_LEN)) != in[12])
+  if (Frame_Checksum(&in[2], (uint8_t)(1u + FRAME_PAYLOAD_LEN)) != in[21])
   {
     return 0u;
   }
 
-  frame->temp = in[3];
-  frame->humi = in[4];
-  frame->mq135_adc = (uint16_t)(((uint16_t)in[5] << 8) | in[6]);
-  frame->mq2_adc = (uint16_t)(((uint16_t)in[7] << 8) | in[8]);
-  frame->flame = in[9];
-  frame->seq = in[10];
-  frame->status = in[11];
+  frame->temp = in[4];
+  frame->humi = in[5];
+  frame->mq135_adc = (uint16_t)(((uint16_t)in[6] << 8) | in[7]);
+  frame->mq2_adc = (uint16_t)(((uint16_t)in[8] << 8) | in[9]);
+  frame->rain_adc = (uint16_t)(((uint16_t)in[10] << 8) | in[11]);
+  frame->therm_adc = (uint16_t)(((uint16_t)in[12] << 8) | in[13]);
+  frame->therm_c10 = (int16_t)(((uint16_t)in[14] << 8) | in[15]);
+  frame->flame = in[16];
+  frame->rain_wet = in[17];
+  frame->therm_hot = in[18];
+  frame->seq = in[19];
+  frame->status = in[20];
   return 1u;
 }
 
@@ -736,6 +913,8 @@ static APP_MAYBE_UNUSED void Monitor_GPIO_Init(void)
   HAL_GPIO_WritePin(OLED_PORT, OLED_SCL_PIN | OLED_SDA_PIN, GPIO_PIN_SET);
 
   LED_Set(0u, 0u, 1u);
+  WS2813_Init_Custom();
+  WS2813_SetColor(0u, 0u, 24u);
 }
 
 static void Monitor_ProcessRx(void)
@@ -779,8 +958,11 @@ static void Monitor_ProcessRx(void)
         g_latest_frame = frame;
         g_have_rx = 1u;
         g_last_rx_ms = HAL_GetTick();
-        printf("[MONITOR] rx seq=%u t=%u h=%u mq135=%u mq2=%u flame=%u status=0x%02X\r\n",
+        printf("[MONITOR] rx v%u seq=%u t=%u h=%u mq135=%u mq2=%u rain=%u therm=%d.%dC flame=%u status=0x%02X\r\n",
+               FRAME_VERSION,
                frame.seq, frame.temp, frame.humi, frame.mq135_adc, frame.mq2_adc,
+               frame.rain_adc, frame.therm_c10 / 10,
+               frame.therm_c10 < 0 ? -(frame.therm_c10 % 10) : (frame.therm_c10 % 10),
                frame.flame, frame.status);
         Monitor_PrintFrontendJson(&frame);
       }
@@ -854,7 +1036,11 @@ static uint8_t Monitor_Danger(void)
   {
     return 0u;
   }
-  return ((g_latest_frame.flame != 0u) || (g_latest_frame.mq2_adc >= th->smoke_danger)) ? 1u : 0u;
+  return ((g_latest_frame.flame != 0u) ||
+          (g_latest_frame.mq2_adc >= th->smoke_danger) ||
+          (g_latest_frame.therm_hot != 0u) ||
+          (((g_latest_frame.status & STATUS_THERM_ADC_ERR) == 0u) &&
+           (g_latest_frame.therm_c10 >= th->therm_danger_c10))) ? 1u : 0u;
 }
 
 static uint8_t Monitor_Warn(void)
@@ -870,7 +1056,11 @@ static uint8_t Monitor_Warn(void)
   }
   return (((g_latest_frame.status & STATUS_DHT_ERROR) != 0u) ||
           (g_latest_frame.mq135_adc >= th->air_warn) ||
-          (g_latest_frame.mq2_adc >= th->smoke_warn)) ? 1u : 0u;
+          (g_latest_frame.mq2_adc >= th->smoke_warn) ||
+          (g_latest_frame.rain_wet != 0u) ||
+          (g_latest_frame.rain_adc >= th->rain_wet) ||
+          (((g_latest_frame.status & STATUS_THERM_ADC_ERR) == 0u) &&
+           (g_latest_frame.therm_c10 >= th->therm_warn_c10))) ? 1u : 0u;
 }
 
 static uint8_t Monitor_Muted(void)
@@ -902,22 +1092,31 @@ static const char *Monitor_AlarmState(void)
 
 static void Monitor_PrintFrontendJson(const SensorFrame *frame)
 {
-  printf("{\"type\":\"sensor\",\"seq\":%u,\"tickMs\":%lu,\"tempC\":%u,"
-         "\"humidityPct\":%u,\"mq135Raw\":%u,\"mq2Raw\":%u,\"flame\":%u,"
+  printf("{\"type\":\"sensor\",\"schemaVersion\":%u,\"seq\":%u,\"tickMs\":%lu,\"tempC\":%u,"
+         "\"humidityPct\":%u,\"mq135Raw\":%u,\"mq2Raw\":%u,\"rainRaw\":%u,"
+         "\"thermRaw\":%u,\"thermC10\":%d,\"rainWet\":%u,\"thermHot\":%u,\"flame\":%u,"
          "\"status\":%u,\"alarm\":\"%s\",\"thresholdProfile\":%u,"
-         "\"mute\":%u,\"flashReady\":%u}\n",
+         "\"mute\":%u,\"flashReady\":%u,\"flashRecords\":%lu,\"externalRgb\":%u}\n",
+         (unsigned int)FRAME_VERSION,
          (unsigned int)frame->seq,
          (unsigned long)HAL_GetTick(),
          (unsigned int)frame->temp,
          (unsigned int)frame->humi,
          (unsigned int)frame->mq135_adc,
          (unsigned int)frame->mq2_adc,
+         (unsigned int)frame->rain_adc,
+         (unsigned int)frame->therm_adc,
+         (int)frame->therm_c10,
+         (unsigned int)frame->rain_wet,
+         (unsigned int)frame->therm_hot,
          (unsigned int)frame->flame,
          (unsigned int)frame->status,
          Monitor_AlarmState(),
          (unsigned int)g_threshold_profile,
          (unsigned int)Monitor_Muted(),
-         (unsigned int)g_flash_present);
+         (unsigned int)g_flash_present,
+         (unsigned long)g_flash_record_count,
+         (unsigned int)g_ext_rgb_ready);
 }
 
 static void Monitor_UpdateAlarm(void)
@@ -933,26 +1132,31 @@ static void Monitor_UpdateAlarm(void)
   if (Monitor_Danger())
   {
     LED_Set(1u, 0u, 0u);
+    WS2813_SetColor(((now / 150u) % 2u == 0u) ? 96u : 18u, 0u, 0u);
     Buzzer_Set((muted == 0u) && ((now / 150u) % 2u == 0u));
   }
   else if (Monitor_LinkWaiting())
   {
     LED_Set(0u, 0u, 1u);
+    WS2813_SetColor(0u, 0u, 28u);
     Buzzer_Set(0u);
   }
   else if (Monitor_NodeLost())
   {
     LED_Set(0u, 0u, 1u);
+    WS2813_SetColor(0u, 0u, ((now / 700u) % 2u == 0u) ? 80u : 12u);
     Buzzer_Set((muted == 0u) && ((now / 700u) % 2u == 0u));
   }
   else if (Monitor_Warn())
   {
     LED_Set(1u, 1u, 0u);
+    WS2813_SetColor(72u, 32u, 0u);
     Buzzer_Set(0u);
   }
   else
   {
     LED_Set(0u, 1u, 0u);
+    WS2813_SetColor(0u, 54u, 0u);
     Buzzer_Set(0u);
   }
 }
@@ -975,10 +1179,13 @@ static void Monitor_UpdateDisplay(void)
                         (Monitor_Warn() ? "STATE WARN" : "STATE NORMAL"))));
     snprintf(line, sizeof(line), "T:%02uC H:%02u%%", g_latest_frame.temp, g_latest_frame.humi);
     OLED_PrintLine(1, line);
-    snprintf(line, sizeof(line), "AIR:%04u", g_latest_frame.mq135_adc);
+    snprintf(line, sizeof(line), "AIR:%04u MQ2:%04u", g_latest_frame.mq135_adc,
+             g_latest_frame.mq2_adc);
     OLED_PrintLine(2, line);
-    snprintf(line, sizeof(line), "MQ2:%04u F:%s", g_latest_frame.mq2_adc,
-             g_latest_frame.flame ? "YES" : "NO");
+    snprintf(line, sizeof(line), "R:%04u N:%d.%d", g_latest_frame.rain_adc,
+             g_latest_frame.therm_c10 / 10,
+             g_latest_frame.therm_c10 < 0 ? -(g_latest_frame.therm_c10 % 10) :
+             (g_latest_frame.therm_c10 % 10));
     OLED_PrintLine(3, line);
   }
   else
@@ -986,12 +1193,12 @@ static void Monitor_UpdateDisplay(void)
     const AlarmThresholds *th = &k_threshold_profiles[g_threshold_profile];
     snprintf(line, sizeof(line), "PROFILE:%u", g_threshold_profile);
     OLED_PrintLine(0, line);
-    snprintf(line, sizeof(line), "AIR TH:%04u", th->air_warn);
+    snprintf(line, sizeof(line), "AIR:%04u MQ2:%04u", th->air_warn, th->smoke_warn);
     OLED_PrintLine(1, line);
-    snprintf(line, sizeof(line), "SMK TH:%04u/%04u", th->smoke_warn, th->smoke_danger);
+    snprintf(line, sizeof(line), "RAIN:%04u HOT:%d", th->rain_wet, th->therm_danger_c10 / 10);
     OLED_PrintLine(2, line);
-    snprintf(line, sizeof(line), "SEQ:%03u F:%s", g_latest_frame.seq,
-             g_flash_present ? "OK" : "NO");
+    snprintf(line, sizeof(line), "SEQ:%03u F:%s L:%lu", g_latest_frame.seq,
+             g_flash_present ? "OK" : "NO", (unsigned long)(g_flash_record_count % 1000u));
     OLED_PrintLine(3, line);
   }
 }
@@ -1010,6 +1217,105 @@ static void LED_Set(uint8_t red, uint8_t green, uint8_t blue)
 static void Buzzer_Set(uint8_t on)
 {
   HAL_GPIO_WritePin(BUZZER_PORT, BUZZER_PIN, on ? GPIO_PIN_SET : GPIO_PIN_RESET);
+}
+
+static void WS2813_Init_Custom(void)
+{
+  GPIO_InitTypeDef gpio = {0};
+
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_TIM3_CLK_ENABLE();
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  gpio.Pin = EXT_RGB_PIN;
+  gpio.Mode = GPIO_MODE_AF_PP;
+  gpio.Pull = GPIO_NOPULL;
+  gpio.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(EXT_RGB_PORT, &gpio);
+
+  TIM3->PSC = 0u;
+  TIM3->ARR = WS2813_TIMER_PERIOD;
+  TIM3->CCR1 = 0u;
+  TIM3->CCMR1 &= ~(TIM_CCMR1_OC1M | TIM_CCMR1_CC1S);
+  TIM3->CCMR1 |= TIM_CCMR1_OC1PE | TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2;
+  TIM3->CCER |= TIM_CCER_CC1E;
+  TIM3->DIER |= TIM_DIER_CC1DE;
+  TIM3->CR1 |= TIM_CR1_ARPE;
+  TIM3->EGR = TIM_EGR_UG;
+
+  DMA1_Channel6->CCR = 0u;
+  DMA1_Channel6->CPAR = (uint32_t)&TIM3->CCR1;
+  DMA1->IFCR = DMA_IFCR_CGIF6 | DMA_IFCR_CTCIF6 | DMA_IFCR_CHTIF6 | DMA_IFCR_CTEIF6;
+  g_ext_rgb_ready = 1u;
+}
+
+static void WS2813_SetColor(uint8_t red, uint8_t green, uint8_t blue)
+{
+  if (g_ext_rgb_ready == 0u)
+  {
+    return;
+  }
+  if ((red == g_ext_rgb_last_r) && (green == g_ext_rgb_last_g) && (blue == g_ext_rgb_last_b))
+  {
+    return;
+  }
+
+  g_ext_rgb_last_r = red;
+  g_ext_rgb_last_g = green;
+  g_ext_rgb_last_b = blue;
+  WS2813_FillBuffer(red, green, blue);
+  WS2813_SendBuffer(WS2813_BUFFER_LEN);
+}
+
+static void WS2813_FillBuffer(uint8_t red, uint8_t green, uint8_t blue)
+{
+  const uint8_t grb[3] = {green, red, blue};
+  uint16_t pos = 0u;
+
+  for (uint8_t led = 0u; led < WS2813_LED_COUNT; led++)
+  {
+    for (uint8_t color = 0u; color < 3u; color++)
+    {
+      uint8_t value = grb[color];
+      for (uint8_t bit = 0u; bit < 8u; bit++)
+      {
+        g_ws2813_dma_buf[pos++] = (value & 0x80u) ? WS2813_CODE1_CCR : WS2813_CODE0_CCR;
+        value <<= 1u;
+      }
+    }
+  }
+
+  while (pos < WS2813_BUFFER_LEN)
+  {
+    g_ws2813_dma_buf[pos++] = 0u;
+  }
+}
+
+static void WS2813_SendBuffer(uint16_t len)
+{
+  const uint32_t start = HAL_GetTick();
+
+  DMA1_Channel6->CCR &= ~DMA_CCR_EN;
+  DMA1_Channel6->CMAR = (uint32_t)g_ws2813_dma_buf;
+  DMA1_Channel6->CNDTR = len;
+  DMA1->IFCR = DMA_IFCR_CGIF6 | DMA_IFCR_CTCIF6 | DMA_IFCR_CHTIF6 | DMA_IFCR_CTEIF6;
+  DMA1_Channel6->CCR = DMA_CCR_DIR | DMA_CCR_MINC | DMA_CCR_PSIZE_0 |
+                       DMA_CCR_MSIZE_0 | DMA_CCR_PL_1 | DMA_CCR_EN;
+
+  TIM3->CNT = 0u;
+  TIM3->CR1 |= TIM_CR1_CEN;
+  while ((DMA1->ISR & DMA_ISR_TCIF6) == 0u)
+  {
+    if ((uint32_t)(HAL_GetTick() - start) > 3u)
+    {
+      break;
+    }
+  }
+
+  TIM3->CR1 &= ~TIM_CR1_CEN;
+  DMA1_Channel6->CCR &= ~DMA_CCR_EN;
+  DMA1->IFCR = DMA_IFCR_CGIF6 | DMA_IFCR_CTCIF6 | DMA_IFCR_CHTIF6 | DMA_IFCR_CTEIF6;
+  TIM3->CCR1 = 0u;
 }
 
 static void I2C_Delay(void)
@@ -1311,6 +1617,132 @@ static void Flash_PageProgram(uint32_t addr, const uint8_t *data, uint8_t len)
   (void)Flash_WaitReady(10u);
 }
 
+static void Flash_ReadData(uint32_t addr, uint8_t *data, uint16_t len)
+{
+  Flash_CS(0u);
+  SPI2_TxRx(0x03u);
+  SPI2_TxRx((uint8_t)(addr >> 16));
+  SPI2_TxRx((uint8_t)(addr >> 8));
+  SPI2_TxRx((uint8_t)addr);
+  for (uint16_t i = 0u; i < len; i++)
+  {
+    data[i] = SPI2_TxRx(0xFFu);
+  }
+  Flash_CS(1u);
+}
+
+static uint16_t Flash_Crc16(const uint8_t *data, uint8_t len)
+{
+  uint16_t crc = 0xFFFFu;
+
+  for (uint8_t i = 0u; i < len; i++)
+  {
+    crc ^= data[i];
+    for (uint8_t bit = 0u; bit < 8u; bit++)
+    {
+      crc = (crc & 0x0001u) ? (uint16_t)((crc >> 1) ^ 0xA001u) : (uint16_t)(crc >> 1);
+    }
+  }
+
+  return crc;
+}
+
+static void Flash_U32ToBytes(uint8_t *out, uint32_t value)
+{
+  out[0] = (uint8_t)(value >> 24);
+  out[1] = (uint8_t)(value >> 16);
+  out[2] = (uint8_t)(value >> 8);
+  out[3] = (uint8_t)value;
+}
+
+static uint32_t Flash_BytesToU32(const uint8_t *in)
+{
+  return ((uint32_t)in[0] << 24) | ((uint32_t)in[1] << 16) |
+         ((uint32_t)in[2] << 8) | (uint32_t)in[3];
+}
+
+static uint8_t Flash_LoadMetadata(void)
+{
+  uint8_t entry[FLASH_META_ENTRY_SIZE];
+  uint8_t found = 0u;
+  uint32_t next_meta = 0u;
+
+  for (uint32_t addr = 0u; addr < FLASH_SECTOR_SIZE; addr += FLASH_META_ENTRY_SIZE)
+  {
+    uint8_t blank = 1u;
+    Flash_ReadData(addr, entry, (uint16_t)sizeof(entry));
+    for (uint8_t i = 0u; i < sizeof(entry); i++)
+    {
+      if (entry[i] != 0xFFu)
+      {
+        blank = 0u;
+        break;
+      }
+    }
+
+    if (blank != 0u)
+    {
+      next_meta = addr;
+      break;
+    }
+
+    if ((entry[0] == FLASH_META_MAGIC0) && (entry[1] == FLASH_META_MAGIC1) &&
+        (entry[2] == FRAME_VERSION))
+    {
+      const uint16_t stored_crc = (uint16_t)(((uint16_t)entry[12] << 8) | entry[13]);
+      const uint16_t calc_crc = Flash_Crc16(entry, 12u);
+      const uint32_t log_addr = Flash_BytesToU32(&entry[4]);
+      const uint32_t count = Flash_BytesToU32(&entry[8]);
+
+      if ((stored_crc == calc_crc) &&
+          (log_addr >= FLASH_LOG_START_ADDR) &&
+          (log_addr < FLASH_LOG_END_ADDR) &&
+          (((log_addr - FLASH_LOG_START_ADDR) % FLASH_LOG_RECORD_SIZE) == 0u))
+      {
+        g_flash_log_addr = log_addr;
+        g_flash_record_count = count;
+        found = 1u;
+      }
+    }
+
+    next_meta = addr + FLASH_META_ENTRY_SIZE;
+  }
+
+  if (next_meta >= FLASH_SECTOR_SIZE)
+  {
+    next_meta = FLASH_SECTOR_SIZE;
+  }
+  g_flash_meta_addr = next_meta;
+
+  return found;
+}
+
+static void Flash_WriteMetadata(void)
+{
+  uint8_t entry[FLASH_META_ENTRY_SIZE];
+  uint16_t crc;
+
+  if (g_flash_meta_addr + FLASH_META_ENTRY_SIZE > FLASH_SECTOR_SIZE)
+  {
+    Flash_SectorErase(0u);
+    g_flash_meta_addr = 0u;
+  }
+
+  memset(entry, 0xFF, sizeof(entry));
+  entry[0] = FLASH_META_MAGIC0;
+  entry[1] = FLASH_META_MAGIC1;
+  entry[2] = FRAME_VERSION;
+  entry[3] = 0u;
+  Flash_U32ToBytes(&entry[4], g_flash_log_addr);
+  Flash_U32ToBytes(&entry[8], g_flash_record_count);
+  crc = Flash_Crc16(entry, 12u);
+  entry[12] = (uint8_t)(crc >> 8);
+  entry[13] = (uint8_t)crc;
+
+  Flash_PageProgram(g_flash_meta_addr, entry, (uint8_t)sizeof(entry));
+  g_flash_meta_addr += FLASH_META_ENTRY_SIZE;
+}
+
 static APP_MAYBE_UNUSED void Flash_Init_Custom(void)
 {
   GPIO_InitTypeDef gpio = {0};
@@ -1362,31 +1794,53 @@ static APP_MAYBE_UNUSED void Flash_Init_Custom(void)
   g_flash_present = (((manufacturer == 0xEFu) || (manufacturer == 0xC8u)) &&
                      ((memory_type == 0x40u) || (memory_type == 0x60u)) &&
                      (capacity == 0x17u)) ? 1u : 0u;
-  g_flash_log_addr = 0u;
+  g_flash_log_addr = FLASH_LOG_START_ADDR;
+  g_flash_record_count = 0u;
+  g_flash_meta_addr = 0u;
 
   if (g_flash_present)
   {
-    /* This demo log uses sector 0 as a rolling scratch area.
-     * 演示日志使用第 0 扇区作为循环记录区。
-     */
-    Flash_SectorErase(0u);
-    printf("[MONITOR] W25Q ID %02X %02X %02X, log sector erased\r\n",
-           manufacturer, memory_type, capacity);
+    if (Flash_LoadMetadata() == 0u)
+    {
+      g_flash_log_addr = FLASH_LOG_START_ADDR;
+      g_flash_record_count = 0u;
+      g_flash_meta_addr = FLASH_SECTOR_SIZE;
+      Flash_WriteMetadata();
+    }
+
+    printf("[MONITOR] W25Q ID %02X %02X %02X, cursor=0x%06lX records=%lu\r\n",
+           manufacturer, memory_type, capacity,
+           (unsigned long)g_flash_log_addr, (unsigned long)g_flash_record_count);
   }
 }
 
 static void Flash_LogFrame(const SensorFrame *frame, uint8_t state)
 {
-  uint8_t record[20];
-  uint8_t sum = 0u;
+  uint8_t record[FLASH_LOG_RECORD_SIZE];
+  const uint32_t tick = HAL_GetTick();
+  const uint16_t crc_len = (uint16_t)(FLASH_LOG_RECORD_SIZE - 2u);
+  uint16_t crc;
 
   if (!g_flash_present)
   {
     return;
   }
 
-  record[0] = 0xE1u;
-  record[1] = 0x03u;
+  if ((g_flash_log_addr < FLASH_LOG_START_ADDR) ||
+      (g_flash_log_addr + FLASH_LOG_RECORD_SIZE > FLASH_LOG_END_ADDR) ||
+      (((g_flash_log_addr - FLASH_LOG_START_ADDR) % FLASH_LOG_RECORD_SIZE) != 0u))
+  {
+    g_flash_log_addr = FLASH_LOG_START_ADDR;
+  }
+
+  if (((g_flash_log_addr - FLASH_LOG_START_ADDR) % FLASH_SECTOR_SIZE) == 0u)
+  {
+    Flash_SectorErase(g_flash_log_addr);
+  }
+
+  memset(record, 0xFF, sizeof(record));
+  record[0] = FLASH_RECORD_MAGIC;
+  record[1] = FRAME_VERSION;
   record[2] = frame->seq;
   record[3] = frame->status;
   record[4] = frame->temp;
@@ -1395,36 +1849,40 @@ static void Flash_LogFrame(const SensorFrame *frame, uint8_t state)
   record[7] = (uint8_t)frame->mq135_adc;
   record[8] = (uint8_t)(frame->mq2_adc >> 8);
   record[9] = (uint8_t)frame->mq2_adc;
-  record[10] = frame->flame;
-  record[11] = state;
-  record[12] = (uint8_t)(HAL_GetTick() >> 24);
-  record[13] = (uint8_t)(HAL_GetTick() >> 16);
-  record[14] = (uint8_t)(HAL_GetTick() >> 8);
-  record[15] = (uint8_t)HAL_GetTick();
-  record[16] = g_threshold_profile;
-  record[17] = 0u;
-  record[18] = 0u;
+  record[10] = (uint8_t)(frame->rain_adc >> 8);
+  record[11] = (uint8_t)frame->rain_adc;
+  record[12] = (uint8_t)(frame->therm_adc >> 8);
+  record[13] = (uint8_t)frame->therm_adc;
+  record[14] = (uint8_t)((uint16_t)frame->therm_c10 >> 8);
+  record[15] = (uint8_t)((uint16_t)frame->therm_c10);
+  record[16] = frame->flame;
+  record[17] = frame->rain_wet;
+  record[18] = frame->therm_hot;
+  record[19] = state;
+  record[20] = (uint8_t)(tick >> 24);
+  record[21] = (uint8_t)(tick >> 16);
+  record[22] = (uint8_t)(tick >> 8);
+  record[23] = (uint8_t)tick;
+  record[24] = g_threshold_profile;
+  record[25] = Monitor_Muted();
+  Flash_U32ToBytes(&record[26], g_flash_record_count);
 
-  /* The record checksum covers the first 19 bytes and helps spot incomplete
-   * or corrupted flash entries during later analysis.
-   * 记录校验和覆盖前 19 字节，便于后续分析时发现未写完整或损坏的 Flash 记录。
-   */
-  for (uint8_t i = 0u; i < 19u; i++)
-  {
-    sum = (uint8_t)(sum + record[i]);
-  }
-  record[19] = sum;
-
-  if ((g_flash_log_addr + sizeof(record)) > 4096u)
-  {
-    g_flash_log_addr = 0u;
-    Flash_SectorErase(0u);
-  }
+  crc = Flash_Crc16(record, (uint8_t)crc_len);
+  record[30] = (uint8_t)(crc >> 8);
+  record[31] = (uint8_t)crc;
 
   Flash_PageProgram(g_flash_log_addr, record, (uint8_t)sizeof(record));
-  printf("[MONITOR] flash log addr=0x%04lX seq=%u state=%u\r\n",
-         (unsigned long)g_flash_log_addr, frame->seq, state);
-  g_flash_log_addr += sizeof(record);
+  printf("[MONITOR] flash log addr=0x%06lX count=%lu seq=%u state=%u\r\n",
+         (unsigned long)g_flash_log_addr, (unsigned long)g_flash_record_count,
+         frame->seq, state);
+
+  g_flash_log_addr += FLASH_LOG_RECORD_SIZE;
+  g_flash_record_count++;
+  if (g_flash_log_addr >= FLASH_LOG_END_ADDR)
+  {
+    g_flash_log_addr = FLASH_LOG_START_ADDR;
+  }
+  Flash_WriteMetadata();
 }
 
 void SystemClock_Config(void)

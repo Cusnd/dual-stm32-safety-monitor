@@ -130,7 +130,7 @@ CLion 主要负责构建。烧录时使用构建产物：
 
 - ST-Link + STM32CubeProgrammer 烧录 `.hex`。
 - ST-Link + OpenOCD/GDB 调试 `.elf`。
-- 串口 ISP 下载时，使用核心板 CH340C 对应的 USART1 下载链路。
+- 串口 ISP 下载时，使用目标板 USB 转串口对应的 USART1 下载链路。
 
 本仓库已经内置 ST-LINK/OpenOCD 配置：
 

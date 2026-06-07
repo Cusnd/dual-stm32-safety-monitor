@@ -8,6 +8,8 @@ const phrases = {
     safe: (snapshot) => `当前风险等级是「${snapshot.riskLabel}」。${snapshot.summary} 关键依据：${snapshot.reasons.join("；")}`,
     alarm: (snapshot) => `报警依据是：${snapshot.reasons.join("；")}。趋势：${snapshot.trends.join("；")}`,
     mq2: (latest, thresholds) => `MQ2 当前为 ${latest.mq2Raw}，预警阈值 ${thresholds.smokeWarn}，危险阈值 ${thresholds.smokeDanger}。${latest.mq2Raw >= thresholds.smokeDanger ? "已经进入危险区间。" : latest.mq2Raw >= thresholds.smokeWarn ? "已经进入预警区间。" : "暂未触发烟雾阈值。"}`,
+    rain: (latest, thresholds) => `雨量 ADC 当前为 ${latest.rainRaw ?? "--"}，湿触发阈值 ${thresholds.rainWet}。${latest.rainWet ? "雨量模块已经触发湿态。" : "雨量模块暂未触发湿态。"}`,
+    therm: (latest, thresholds) => `热敏温度当前为 ${Number.isFinite(latest.thermC10) ? (latest.thermC10 / 10).toFixed(1) : "--"}°C，预警阈值 ${(thresholds.thermWarnC10 / 10).toFixed(1)}°C，危险阈值 ${(thresholds.thermDangerC10 / 10).toFixed(1)}°C。${latest.thermHot ? "DO 高温已经触发。" : "DO 高温暂未触发。"}`,
     next: (snapshot) => `建议：${snapshot.recommendations.join("；")}`,
     default: (snapshot) => `我看到当前状态是「${snapshot.riskLabel}」。${snapshot.summary} 建议：${snapshot.recommendations.join("；")}`,
     disabled: "DeepSeek provider is disabled; use a backend proxy before enabling it.",
@@ -19,6 +21,8 @@ const phrases = {
     safe: (snapshot) => `Current risk level is ${snapshot.riskLabel}. ${snapshot.summary} Evidence: ${snapshot.reasons.join("; ")}`,
     alarm: (snapshot) => `Alarm evidence: ${snapshot.reasons.join("; ")}. Trend: ${snapshot.trends.join("; ")}`,
     mq2: (latest, thresholds) => `MQ2 is ${latest.mq2Raw}; warning threshold is ${thresholds.smokeWarn}, danger threshold is ${thresholds.smokeDanger}. ${latest.mq2Raw >= thresholds.smokeDanger ? "It is in the danger range." : latest.mq2Raw >= thresholds.smokeWarn ? "It is in the warning range." : "It has not crossed the smoke threshold."}`,
+    rain: (latest, thresholds) => `Rain ADC is ${latest.rainRaw ?? "--"}; wet threshold is ${thresholds.rainWet}. ${latest.rainWet ? "The rain module is wet-triggered." : "The rain module is not wet-triggered."}`,
+    therm: (latest, thresholds) => `Thermistor is ${Number.isFinite(latest.thermC10) ? (latest.thermC10 / 10).toFixed(1) : "--"}°C; warning threshold is ${(thresholds.thermWarnC10 / 10).toFixed(1)}°C and danger threshold is ${(thresholds.thermDangerC10 / 10).toFixed(1)}°C. ${latest.thermHot ? "The DO high-temperature output is triggered." : "The DO high-temperature output is not triggered."}`,
     next: (snapshot) => `Recommendation: ${snapshot.recommendations.join("; ")}`,
     default: (snapshot) => `Current state is ${snapshot.riskLabel}. ${snapshot.summary} Recommendation: ${snapshot.recommendations.join("; ")}`,
     disabled: "DeepSeek provider is disabled; use a backend proxy before enabling it.",
@@ -72,6 +76,20 @@ export class LocalInsightProvider {
       return {
         role: "assistant",
         content: t.mq2(snapshot.latest, thresholdForProfile(snapshot.latest.thresholdProfile)),
+        provider: t.localProvider,
+      };
+    }
+    if (text.includes("雨") || text.includes("rain")) {
+      return {
+        role: "assistant",
+        content: t.rain(snapshot.latest, thresholdForProfile(snapshot.latest.thresholdProfile)),
+        provider: t.localProvider,
+      };
+    }
+    if (text.includes("热敏") || text.includes("therm") || text.includes("ntc")) {
+      return {
+        role: "assistant",
+        content: t.therm(snapshot.latest, thresholdForProfile(snapshot.latest.thresholdProfile)),
         provider: t.localProvider,
       };
     }
