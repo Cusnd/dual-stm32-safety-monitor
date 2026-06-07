@@ -62,10 +62,13 @@
 #define USART_BAUDRATE    115200u
 #define SENSOR_PERIOD_MS  1000u
 #define DHT11_PERIOD_MS   2100u
-#define UI_PERIOD_MS      300u
+#define UI_PERIOD_MS      500u
 #define ALARM_PERIOD_MS   100u
-#define NODE_TIMEOUT_MS   3000u
+#define NODE_TIMEOUT_MS   5000u
 #define MUTE_TIME_MS      60000u
+
+#define OLED_WIDTH_PIXELS 128u
+#define OLED_FONT_WIDTH   6u
 
 /* Sensor-node pins.  PA9/PA10 are intentionally not used here because this
  * board already routes them to the CH340C USB-to-UART bridge for USART1 debug.
@@ -122,6 +125,7 @@ static const AlarmThresholds k_threshold_profiles[] =
 
 static SensorFrame g_latest_frame;
 static uint32_t g_last_rx_ms = 0u;
+static uint8_t g_have_rx = 0u;
 static uint8_t g_page = 0u;
 static uint8_t g_threshold_profile = 0u;
 static uint32_t g_mute_until_ms = 0u;
@@ -155,6 +159,7 @@ static void Monitor_ProcessRx(void);
 static void Monitor_UpdateButtons(void);
 static void Monitor_UpdateAlarm(void);
 static void Monitor_UpdateDisplay(void);
+static uint8_t Monitor_LinkWaiting(void);
 static uint8_t Monitor_NodeLost(void);
 static uint8_t Monitor_Danger(void);
 static uint8_t Monitor_Warn(void);
@@ -164,9 +169,8 @@ static void Monitor_PrintFrontendJson(const SensorFrame *frame);
 static void LED_Set(uint8_t red, uint8_t green, uint8_t blue);
 static void Buzzer_Set(uint8_t on);
 static void OLED_Init_Custom(void);
-static void OLED_Clear(void);
+static APP_MAYBE_UNUSED void OLED_Clear(void);
 static void OLED_SetCursor(uint8_t page, uint8_t col);
-static void OLED_Puts(const char *text);
 static void OLED_PrintLine(uint8_t page, const char *text);
 static void Flash_Init_Custom(void);
 static void Flash_LogFrame(const SensorFrame *frame, uint8_t state);
@@ -293,12 +297,14 @@ static APP_MAYBE_UNUSED void Monitor_App_Run(void)
   uint32_t last_alarm_ms = 0u;
   uint32_t last_log_ms = 0u;
 
-  /* Start in lost-node state so the OLED immediately says NODE LOST until the
-   * first valid SENSOR frame arrives.
-   * 上电后先进入节点丢失状态，直到收到第一帧合法 SENSOR 数据前，OLED 会
-   * 显示 NODE LOST，便于检查通信线是否接好。
+  /* Give the sensor link a startup grace period before reporting NODE LOST.
+   * The OLED shows WAIT SENSOR until the first valid frame arrives or the
+   * timeout expires, which avoids a misleading lost-node warning at boot.
+   * 上电后先给传感器链路一个启动宽限期；收到第一帧合法数据或超时前，
+   * OLED 显示 WAIT SENSOR，避免刚启动就误导为节点丢失。
    */
-  g_last_rx_ms = HAL_GetTick() - NODE_TIMEOUT_MS - 1u;
+  g_have_rx = 0u;
+  g_last_rx_ms = HAL_GetTick();
 
   while (1)
   {
@@ -771,6 +777,7 @@ static void Monitor_ProcessRx(void)
       if (Frame_Decode(buf, &frame))
       {
         g_latest_frame = frame;
+        g_have_rx = 1u;
         g_last_rx_ms = HAL_GetTick();
         printf("[MONITOR] rx seq=%u t=%u h=%u mq135=%u mq2=%u flame=%u status=0x%02X\r\n",
                frame.seq, frame.temp, frame.humi, frame.mq135_adc, frame.mq2_adc,
@@ -830,6 +837,11 @@ static void Monitor_UpdateButtons(void)
   k2_last = k2;
 }
 
+static uint8_t Monitor_LinkWaiting(void)
+{
+  return ((g_have_rx == 0u) && !Monitor_NodeLost()) ? 1u : 0u;
+}
+
 static uint8_t Monitor_NodeLost(void)
 {
   return ((uint32_t)(HAL_GetTick() - g_last_rx_ms) > NODE_TIMEOUT_MS) ? 1u : 0u;
@@ -838,7 +850,7 @@ static uint8_t Monitor_NodeLost(void)
 static uint8_t Monitor_Danger(void)
 {
   const AlarmThresholds *th = &k_threshold_profiles[g_threshold_profile];
-  if (Monitor_NodeLost())
+  if (Monitor_LinkWaiting() || Monitor_NodeLost())
   {
     return 0u;
   }
@@ -848,6 +860,10 @@ static uint8_t Monitor_Danger(void)
 static uint8_t Monitor_Warn(void)
 {
   const AlarmThresholds *th = &k_threshold_profiles[g_threshold_profile];
+  if (Monitor_LinkWaiting())
+  {
+    return 0u;
+  }
   if (Monitor_NodeLost())
   {
     return 1u;
@@ -868,6 +884,10 @@ static const char *Monitor_AlarmState(void)
   if (Monitor_Danger())
   {
     return "danger";
+  }
+  if (Monitor_LinkWaiting())
+  {
+    return "waiting";
   }
   if (Monitor_NodeLost())
   {
@@ -915,6 +935,11 @@ static void Monitor_UpdateAlarm(void)
     LED_Set(1u, 0u, 0u);
     Buzzer_Set((muted == 0u) && ((now / 150u) % 2u == 0u));
   }
+  else if (Monitor_LinkWaiting())
+  {
+    LED_Set(0u, 0u, 1u);
+    Buzzer_Set(0u);
+  }
   else if (Monitor_NodeLost())
   {
     LED_Set(0u, 0u, 1u);
@@ -935,17 +960,19 @@ static void Monitor_UpdateAlarm(void)
 static void Monitor_UpdateDisplay(void)
 {
   char line[24];
+  const uint8_t waiting = Monitor_LinkWaiting();
+  const uint8_t lost = Monitor_NodeLost();
 
-  /* The screen is small, so each page is kept to four concise text rows.
-   * OLED 屏幕较小，因此每页只显示四行短文本，保证演示时清楚可读。
+  /* Each row is overwritten in place.  Avoiding a full-screen clear prevents
+   * the OLED from visibly blinking during normal refreshes.
+   * 每行直接原位覆盖；避免每次全屏清空，减少 OLED 正常刷新时的可见闪烁。
    */
-  OLED_Clear();
-
   if (g_page == 0u)
   {
-    OLED_PrintLine(0, Monitor_NodeLost() ? "NODE LOST" :
-                      (Monitor_Danger() ? "STATE DANGER" :
-                       (Monitor_Warn() ? "STATE WARN" : "STATE NORMAL")));
+    OLED_PrintLine(0, waiting ? "WAIT SENSOR" :
+                      (lost ? "NODE LOST" :
+                       (Monitor_Danger() ? "STATE DANGER" :
+                        (Monitor_Warn() ? "STATE WARN" : "STATE NORMAL"))));
     snprintf(line, sizeof(line), "T:%02uC H:%02u%%", g_latest_frame.temp, g_latest_frame.humi);
     OLED_PrintLine(1, line);
     snprintf(line, sizeof(line), "AIR:%04u", g_latest_frame.mq135_adc);
@@ -1060,9 +1087,28 @@ static void OLED_Cmd(uint8_t cmd)
   OLED_Write(0x00u, cmd);
 }
 
-static void OLED_Data(uint8_t data)
+static void OLED_DataFill(uint8_t data, uint8_t count)
 {
-  OLED_Write(0x40u, data);
+  I2C_Start();
+  I2C_WriteByte(0x78u);
+  I2C_WriteByte(0x40u);
+  for (uint8_t i = 0u; i < count; i++)
+  {
+    I2C_WriteByte(data);
+  }
+  I2C_Stop();
+}
+
+static void OLED_DataBuffer(const uint8_t *data, uint8_t len)
+{
+  I2C_Start();
+  I2C_WriteByte(0x78u);
+  I2C_WriteByte(0x40u);
+  for (uint8_t i = 0u; i < len; i++)
+  {
+    I2C_WriteByte(data[i]);
+  }
+  I2C_Stop();
 }
 
 static APP_MAYBE_UNUSED void OLED_Init_Custom(void)
@@ -1098,15 +1144,12 @@ static APP_MAYBE_UNUSED void OLED_Init_Custom(void)
   OLED_Cmd(0xAFu);
 }
 
-static void OLED_Clear(void)
+static APP_MAYBE_UNUSED void OLED_Clear(void)
 {
   for (uint8_t page = 0u; page < 8u; page++)
   {
     OLED_SetCursor(page, 0u);
-    for (uint8_t col = 0u; col < 128u; col++)
-    {
-      OLED_Data(0x00u);
-    }
+    OLED_DataFill(0x00u, OLED_WIDTH_PIXELS);
   }
 }
 
@@ -1172,29 +1215,25 @@ static void Font5x7(char c, uint8_t out[5])
   }
 }
 
-static void OLED_PutChar(char c)
-{
-  uint8_t font[5];
-  Font5x7(c, font);
-  for (uint8_t i = 0u; i < 5u; i++)
-  {
-    OLED_Data(font[i]);
-  }
-  OLED_Data(0x00u);
-}
-
-static void OLED_Puts(const char *text)
-{
-  while (*text != '\0')
-  {
-    OLED_PutChar(*text++);
-  }
-}
-
 static void OLED_PrintLine(uint8_t page, const char *text)
 {
+  uint8_t pixels[OLED_WIDTH_PIXELS];
+  uint8_t col = 0u;
+
+  memset(pixels, 0, sizeof(pixels));
+  while ((*text != '\0') && ((uint16_t)col + OLED_FONT_WIDTH <= OLED_WIDTH_PIXELS))
+  {
+    uint8_t font[5];
+    Font5x7(*text++, font);
+    for (uint8_t i = 0u; i < 5u; i++)
+    {
+      pixels[col++] = font[i];
+    }
+    pixels[col++] = 0x00u;
+  }
+
   OLED_SetCursor(page, 0u);
-  OLED_Puts(text);
+  OLED_DataBuffer(pixels, OLED_WIDTH_PIXELS);
 }
 
 static void Flash_CS(uint8_t high)
