@@ -102,3 +102,67 @@ add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
             $<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>/$<TARGET_FILE_BASE_NAME:${CMAKE_PROJECT_NAME}>.bin
     COMMENT "Generating HEX and BIN images"
 )
+
+# ST-LINK / OpenOCD helpers.  CLion can use the shared run configurations under
+# .idea/runConfigurations, and the same targets are available from the terminal:
+#
+#   cmake --build --preset SensorStlinkFlash
+#   cmake --build --preset MonitorStlinkFlash
+#
+# For a manual GDB session, run stlink_server in one terminal and stlink_gdb in
+# another terminal for the same CMake preset.
+set(STLINK_OPENOCD_CONFIG
+    "${CMAKE_SOURCE_DIR}/cmake/stlink-stm32f103c8.cfg"
+    CACHE FILEPATH "OpenOCD board config for ST-LINK + STM32F103C8T6")
+set(STLINK_GDB_PORT "3333" CACHE STRING "OpenOCD GDB port")
+set(STLINK_TELNET_PORT "4444" CACHE STRING "OpenOCD telnet port")
+set(STLINK_TCL_PORT "6666" CACHE STRING "OpenOCD TCL port")
+
+find_program(OPENOCD_EXECUTABLE
+    NAMES openocd openocd.exe
+    DOC "OpenOCD executable")
+if(NOT OPENOCD_EXECUTABLE)
+    set(OPENOCD_EXECUTABLE "openocd" CACHE FILEPATH "OpenOCD executable" FORCE)
+endif()
+
+find_program(ARM_NONE_EABI_GDB_EXECUTABLE
+    NAMES arm-none-eabi-gdb arm-none-eabi-gdb.exe
+    DOC "ARM none-eabi GDB executable")
+if(NOT ARM_NONE_EABI_GDB_EXECUTABLE)
+    set(ARM_NONE_EABI_GDB_EXECUTABLE "arm-none-eabi-gdb" CACHE FILEPATH
+        "ARM none-eabi GDB executable" FORCE)
+endif()
+
+add_custom_target(stlink_server
+    COMMAND "${OPENOCD_EXECUTABLE}"
+            -f "${STLINK_OPENOCD_CONFIG}"
+            -c "gdb_port ${STLINK_GDB_PORT}"
+            -c "telnet_port ${STLINK_TELNET_PORT}"
+            -c "tcl_port ${STLINK_TCL_PORT}"
+    COMMENT "Starting OpenOCD ST-LINK debug server on GDB port ${STLINK_GDB_PORT}"
+    USES_TERMINAL
+)
+
+add_custom_target(stlink_flash
+    DEPENDS ${CMAKE_PROJECT_NAME}
+    COMMAND "${OPENOCD_EXECUTABLE}"
+            -f "${STLINK_OPENOCD_CONFIG}"
+            -c "gdb_port ${STLINK_GDB_PORT}"
+            -c "telnet_port ${STLINK_TELNET_PORT}"
+            -c "tcl_port ${STLINK_TCL_PORT}"
+            -c "program {$<TARGET_FILE:${CMAKE_PROJECT_NAME}>} verify reset exit"
+    COMMENT "Flashing $<TARGET_FILE_NAME:${CMAKE_PROJECT_NAME}> through ST-LINK"
+    USES_TERMINAL
+)
+
+add_custom_target(stlink_gdb
+    DEPENDS ${CMAKE_PROJECT_NAME}
+    COMMAND "${ARM_NONE_EABI_GDB_EXECUTABLE}"
+            "$<TARGET_FILE:${CMAKE_PROJECT_NAME}>"
+            -ex "target extended-remote localhost:${STLINK_GDB_PORT}"
+            -ex "monitor reset halt"
+            -ex "load"
+            -ex "monitor reset halt"
+    COMMENT "Starting GDB for $<TARGET_FILE_NAME:${CMAKE_PROJECT_NAME}>; run stlink_server first"
+    USES_TERMINAL
+)

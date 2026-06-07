@@ -14,6 +14,8 @@
 | ARM GCC | 编译 Cortex-M3 裸机固件 | `arm-none-eabi-gcc` 需要在 PATH 中 |
 | STM32CubeCLT | 提供 ARM GCC、Ninja、烧录/调试工具链 | 推荐安装 |
 | STM32CubeProgrammer / ST-Link 工具 | 烧录 `.hex` 或 `.bin` | 用于把 CLion 编译出的固件写入开发板 |
+| OpenOCD | ST-LINK SWD 调试服务器 | `openocd` 需要在 PATH 中，或在 CLion Embedded Development 设置中配置 |
+| ARM GDB | 连接 OpenOCD 调试 `.elf` | `arm-none-eabi-gdb` 需要在 PATH 中 |
 
 ## 2. 在 CLion 中打开项目
 
@@ -130,23 +132,91 @@ CLion 主要负责构建。烧录时使用构建产物：
 - ST-Link + OpenOCD/GDB 调试 `.elf`。
 - 串口 ISP 下载时，使用核心板 CH340C 对应的 USART1 下载链路。
 
+本仓库已经内置 ST-LINK/OpenOCD 配置：
+
+| 文件 / 目标 | 用途 |
+|---|---|
+| `cmake/stlink-stm32f103c8.cfg` | OpenOCD 的 ST-LINK + STM32F103C8T6 板级配置 |
+| `stlink_flash` | 构建当前 preset 的固件并通过 ST-LINK 烧录 |
+| `stlink_server` | 启动 OpenOCD，开放 GDB 端口 `3333` |
+| `stlink_gdb` | 启动 `arm-none-eabi-gdb` 并连接 `localhost:3333` |
+
+命令行一键烧录：
+
+```powershell
+cmake --preset SensorDebug
+cmake --build --preset SensorStlinkFlash
+
+cmake --preset MonitorDebug
+cmake --build --preset MonitorStlinkFlash
+```
+
+命令行手动调试时，先开 OpenOCD，再开 GDB：
+
+```powershell
+cmake --build --preset SensorStlinkServer
+# 另开一个终端
+cmake --build --preset SensorStlinkGdb
+```
+
+板 B 把上面命令中的 `Sensor...` 换成 `Monitor...`。
+
+CLion 中可以直接使用共享运行配置：
+
+| CLion Run Configuration | 固件 |
+|---|---|
+| `STLINK OpenOCD Sensor` | `build/SensorDebug/Fire_F103_sensor.elf` |
+| `STLINK OpenOCD Monitor` | `build/MonitorDebug/Fire_F103_monitor.elf` |
+
+如果 CLion 没自动识别共享配置，可手动新建 `OpenOCD Download & Run`，参数填：
+
+```text
+Board config file: $PROJECT_DIR$/cmake/stlink-stm32f103c8.cfg
+GDB port: 3333
+Download: Always
+Reset: Halt
+Sensor executable: $PROJECT_DIR$/build/SensorDebug/Fire_F103_sensor.elf
+Monitor executable: $PROJECT_DIR$/build/MonitorDebug/Fire_F103_monitor.elf
+```
+
 烧录后串口调试参数为：
 
 ```text
 115200 8N1
 ```
 
-## 8. CLion 常见问题
+## 8. ST-LINK 接线
+
+| 现象 | 原因 | 处理 |
+|---|---|---|
+| OpenOCD 提示找不到目标 MCU | SWD 接线或供电异常 | 检查 `3V3/GND/PA13/PA14/NRST`，并确认开发板已上电 |
+| GDB 连接不上 `localhost:3333` | OpenOCD 未启动或端口被占用 | 先运行 `stlink_server`，或关闭占用 `3333` 的程序 |
+| 烧录后角色不对 | 使用了错误 preset | 板 A 用 `SensorStlinkFlash`，板 B 用 `MonitorStlinkFlash` |
+
+ST-LINK SWD 接线：
+
+```text
+ST-LINK 3V3  -> Board 3V3
+ST-LINK GND  -> Board GND
+ST-LINK SWDIO -> PA13/SWDIO
+ST-LINK SWCLK -> PA14/SWCLK
+ST-LINK NRST -> NRST
+```
+
+`PA13/PA14` 是 SWD 引脚，不要复用给外设。
+
+## 9. CLion 常见问题
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
 | CLion 配置 CMake 失败，提示找不到 `arm-none-eabi-gcc` | ARM GCC 不在 PATH | 在 CLion Toolchain 或系统 PATH 中加入 STM32CubeCLT/ARM GCC 路径 |
+| CLion 运行 `STLINK OpenOCD ...` 时提示 OpenOCD 位置未设置 | Embedded Development 中没有配置 OpenOCD | `Settings -> Build, Execution, Deployment -> Embedded Development` 设置 OpenOCD 路径 |
 | 生成的是显示节点，不是采集节点 | 选了 `Debug` 或 `MonitorDebug` | 板 A 必须选 `SensorDebug` |
 | 板 B 一直 `NODE LOST` | 板 A 没运行 SENSOR 固件，或 USART3 接线错误 | 确认板 A 烧 `Fire_F103_sensor.hex`，板 B 烧 `Fire_F103_monitor.hex` |
 | OLED 不显示 | 只构建了固件但未烧录，或 OLED 接线/供电错误 | 确认烧录 Monitor 固件，并检查 `PB6/PB7/3V3/GND` |
 | 命令行手写 CMake 时工具链路径异常 | Windows 路径和反斜杠转义问题 | 优先用 CLion preset 或 `cmake --preset SensorDebug` |
 
-## 9. 不需要使用 Keil
+## 10. 不需要使用 Keil
 
 本项目当前维护和验证的主路径是：
 

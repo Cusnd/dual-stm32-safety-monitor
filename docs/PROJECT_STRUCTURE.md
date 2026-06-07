@@ -103,8 +103,9 @@ The primary development workflow is CLion reading `CMakePresets.json`, then usin
 | File / 文件 | Purpose / 用途 |
 |---|---|
 | `CMakeLists.txt` | Defines the firmware target, role selection, and HEX/BIN generation. / 定义固件目标、节点角色选择和 HEX/BIN 生成。 |
-| `CMakePresets.json` | Provides `SensorDebug` and `MonitorDebug` presets. / 提供 `SensorDebug` 与 `MonitorDebug` 两个预设。 |
+| `CMakePresets.json` | Provides build and ST-LINK flash/debug presets. / 提供构建以及 ST-LINK 烧录/调试预设。 |
 | `cmake/gcc-arm-none-eabi.cmake` | ARM GCC toolchain configuration. / ARM GCC 工具链配置。 |
+| `cmake/stlink-stm32f103c8.cfg` | OpenOCD config for ST-LINK SWD debugging. / ST-LINK SWD 调试使用的 OpenOCD 配置。 |
 | `cmake/stm32cubemx/CMakeLists.txt` | Lists CubeMX-generated sources and HAL/CMSIS include paths. / 列出 CubeMX 生成源码以及 HAL/CMSIS 头文件路径。 |
 | `STM32F103XX_FLASH.ld` | Linker script that describes flash and RAM layout. / 描述 Flash 和 RAM 布局的链接脚本。 |
 | `startup_stm32f103xb.s` | Startup assembly file with vector table and reset entry. / 启动汇编文件，包含中断向量表和复位入口。 |
@@ -174,7 +175,8 @@ The following paths are intentionally ignored by Git:
 |---|---|
 | `assets/` | Local PDFs, screenshots, reference materials, and images. / 本地 PDF、截图、参考资料和图片。 |
 | `build/` | CMake build outputs, object files, ELF/HEX/BIN products. / CMake 构建输出、目标文件和 ELF/HEX/BIN 产物。 |
-| `.idea/` | CLion/JetBrains local IDE settings. / CLion/JetBrains 本地 IDE 设置。 |
+| `.idea/` | CLion/JetBrains local IDE settings; only shared `runConfigurations/*.xml` are allowed. / CLion/JetBrains 本地 IDE 设置；只放行共享的 `runConfigurations/*.xml`。 |
+| `tmp/` | Temporary generated material. / 临时生成资料。 |
 | `MDK-ARM/Fire_F103/` | Keil generated intermediate/output files. / Keil 生成的中间文件和输出文件。 |
 
 This keeps the public repository focused on source code and useful documentation.
@@ -192,6 +194,7 @@ This keeps the public repository focused on source code and useful documentation
 | Change buzzer or LED behavior / 修改蜂鸣器或灯效 | `Monitor_UpdateAlarm()`, `LED_Set()`, `Buzzer_Set()` |
 | Change board-to-board frame format / 修改双板通信帧格式 | `FRAME_PAYLOAD_LEN`, `SensorFrame`, `Frame_Encode()`, `Frame_Decode()`, docs |
 | Change build output names / 修改构建产物名称 | `CMakeLists.txt` |
+| Change ST-LINK/OpenOCD debug settings / 修改 ST-LINK/OpenOCD 调试配置 | `cmake/stlink-stm32f103c8.cfg`, `CMakeLists.txt`, `.idea/runConfigurations/` |
 
 When changing the frame format, update both sender and receiver at the same time. Otherwise Board B will reject Board A's frames.
 

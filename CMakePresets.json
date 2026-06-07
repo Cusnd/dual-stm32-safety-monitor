@@ -69,6 +69,54 @@
             "name": "Release",
             "displayName": "Build release image",
             "configurePreset": "Release"
+        },
+        {
+            "name": "SensorStlinkFlash",
+            "displayName": "STLINK flash board A sensor image",
+            "configurePreset": "SensorDebug",
+            "targets": [
+                "stlink_flash"
+            ]
+        },
+        {
+            "name": "MonitorStlinkFlash",
+            "displayName": "STLINK flash board B monitor image",
+            "configurePreset": "MonitorDebug",
+            "targets": [
+                "stlink_flash"
+            ]
+        },
+        {
+            "name": "SensorStlinkServer",
+            "displayName": "STLINK OpenOCD server for board A",
+            "configurePreset": "SensorDebug",
+            "targets": [
+                "stlink_server"
+            ]
+        },
+        {
+            "name": "MonitorStlinkServer",
+            "displayName": "STLINK OpenOCD server for board B",
+            "configurePreset": "MonitorDebug",
+            "targets": [
+                "stlink_server"
+            ]
+        },
+        {
+            "name": "SensorStlinkGdb",
+            "displayName": "STLINK GDB session for board A",
+            "configurePreset": "SensorDebug",
+            "targets": [
+                "stlink_gdb"
+            ]
+        },
+        {
+            "name": "MonitorStlinkGdb",
+            "displayName": "STLINK GDB session for board B",
+            "configurePreset": "MonitorDebug",
+            "targets": [
+                "stlink_gdb"
+            ]
         }
     ]
 }
