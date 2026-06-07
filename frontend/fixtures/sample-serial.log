@@ -1,0 +1,12 @@
+[MONITOR] boot, USART1 debug ready, USART3 link ready, flash=ok
+[MONITOR] rx seq=11 t=25 h=48 mq135=1180 mq2=760 flame=0 status=0x00
+{"type":"sensor","seq":11,"tickMs":10120,"tempC":25,"humidityPct":48,"mq135Raw":1180,"mq2Raw":760,"flame":0,"status":0,"alarm":"normal","thresholdProfile":0,"mute":0,"flashReady":1}
+[MONITOR] rx seq=12 t=25 h=48 mq135=1730 mq2=1240 flame=0 status=0x00
+{"type":"sensor","seq":12,"tickMs":11120,"tempC":25,"humidityPct":48,"mq135Raw":1730,"mq2Raw":1240,"flame":0,"status":0,"alarm":"normal","thresholdProfile":0,"mute":0,"flashReady":1}
+[MONITOR] rx seq=13 t=26 h=49 mq135=2235 mq2=1810 flame=0 status=0x00
+{"type":"sensor","seq":13,"tickMs":12120,"tempC":26,"humidityPct":49,"mq135Raw":2235,"mq2Raw":1810,"flame":0,"status":0,"alarm":"warn","thresholdProfile":0,"mute":0,"flashReady":1}
+[MONITOR] rx seq=14 t=26 h=49 mq135=2420 mq2=2910 flame=0 status=0x00
+{"type":"sensor","seq":14,"tickMs":13120,"tempC":26,"humidityPct":49,"mq135Raw":2420,"mq2Raw":2910,"flame":0,"status":0,"alarm":"danger","thresholdProfile":0,"mute":0,"flashReady":1}
+[MONITOR] buzzer muted for 60s
+[MONITOR] rx seq=15 t=27 h=50 mq135=2280 mq2=1660 flame=0 status=0x01
+{"type":"sensor","seq":15,"tickMs":14120,"tempC":27,"humidityPct":50,"mq135Raw":2280,"mq2Raw":1660,"flame":0,"status":1,"alarm":"warn","thresholdProfile":0,"mute":1,"flashReady":1}

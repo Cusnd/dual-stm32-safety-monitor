@@ -40,6 +40,7 @@ flowchart LR
 - 两块 STM32 之间使用 `USART3 PB10/PB11` 直连通信，体现多 MCU 协作。
 - 板 B 使用 USART3 中断接收环形缓冲，OLED 刷新时也不容易丢帧。
 - 自定义轻量数据帧：帧头、长度、序号、状态位和 checksum 校验。
+- 板 B 在保留原有调试日志的同时，通过 USART1 输出 JSON Lines，供浏览器 Web Serial 看板读取。
 - 支持 OLED 页面、RGB 状态灯、蜂鸣器报警、按键静音、节点离线检测和可选 W25Q64 记录。
 - `Fire_F103.ioc` 已尽量同步当前固件的引脚和外设配置，方便用 CubeMX 查看。
 
@@ -73,6 +74,8 @@ flowchart LR
 - [docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md](docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md) / [English](docs/BOARD_AND_CHIP_REFERENCE.en.md)：开发板、扩展板和 STM32F103C8T6 芯片说明清单。
 - [docs/MODULE_REFERENCE.zh-CN.md](docs/MODULE_REFERENCE.zh-CN.md) / [English](docs/MODULE_REFERENCE.en.md)：DHT11、MQ、火焰、OLED、蜂鸣器、W25Q64 等模块说明清单。
 - [docs/CLION_CMAKE_GUIDE.zh-CN.md](docs/CLION_CMAKE_GUIDE.zh-CN.md) / [English](docs/CLION_CMAKE_GUIDE.en.md)：CLion + CMake Presets 构建和烧录产物说明。
+- [docs/FRONTEND_SERIAL_DASHBOARD.zh-CN.md](docs/FRONTEND_SERIAL_DASHBOARD.zh-CN.md) / [English](docs/FRONTEND_SERIAL_DASHBOARD.en.md)：Web Serial 前端数据看板使用说明。
+- [docs/FRONTEND_TEST_RECORD.zh-CN.md](docs/FRONTEND_TEST_RECORD.zh-CN.md) / [English](docs/FRONTEND_TEST_RECORD.en.md)：前端和固件验证记录。
 - [docs/FUNCTION_GUIDE.md](docs/FUNCTION_GUIDE.md)：面向初学者的中英双语函数说明。
 - [docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md](docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md) / [English](docs/FUNCTION_DESIGN_WALKTHROUGH.en.md)：详细功能函数设计、协作逻辑和图表串联讲解。
 - [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)：中英双语项目结构和修改入口说明。
@@ -118,6 +121,16 @@ cmake --build --preset MonitorDebug
 
 更详细的 CLion 配置、profile 选择和常见问题见 [docs/CLION_CMAKE_GUIDE.zh-CN.md](docs/CLION_CMAKE_GUIDE.zh-CN.md)。`MDK-ARM/` 不是当前主开发入口，只作为参考文件保留。
 
+## Web Serial 前端看板
+
+板 B 会在 USART1 CH340C 调试口输出机器可读的 JSON Lines。在仓库根目录启动静态前端：
+
+```powershell
+python -m http.server 5173 -d frontend
+```
+
+用 Chrome 或 Edge 打开 `http://localhost:5173`，选择板 B 对应的 CH340C 串口，参数为 `115200 8N1`；没有硬件时也可以使用页面里的模拟串口回放按钮。详见 [docs/FRONTEND_SERIAL_DASHBOARD.zh-CN.md](docs/FRONTEND_SERIAL_DASHBOARD.zh-CN.md)。
+
 ## 通信协议
 
 板 A 每秒发送一帧 13 字节数据。MQ 和火焰状态每帧刷新；DHT11 按模块手册要求以大于 2 秒的间隔刷新，未刷新帧沿用上一次温湿度值。
@@ -160,6 +173,7 @@ K2 长按切换阈值档位。
 ├── Core/                    应用层和 STM32 生成源码
 ├── Drivers/                 CMSIS 与 STM32F1 HAL 驱动
 ├── cmake/                   工具链和 CubeMX CMake 配置
+├── frontend/                静态 Web Serial 前端看板
 ├── MDK-ARM/                 Keil 参考文件，不是 CLion 主流程
 ├── Fire_F103.ioc            CubeMX 引脚/外设参考配置
 ├── CMakeLists.txt           顶层固件构建脚本

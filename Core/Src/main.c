@@ -158,6 +158,9 @@ static void Monitor_UpdateDisplay(void);
 static uint8_t Monitor_NodeLost(void);
 static uint8_t Monitor_Danger(void);
 static uint8_t Monitor_Warn(void);
+static uint8_t Monitor_Muted(void);
+static const char *Monitor_AlarmState(void);
+static void Monitor_PrintFrontendJson(const SensorFrame *frame);
 static void LED_Set(uint8_t red, uint8_t green, uint8_t blue);
 static void Buzzer_Set(uint8_t on);
 static void OLED_Init_Custom(void);
@@ -772,6 +775,7 @@ static void Monitor_ProcessRx(void)
         printf("[MONITOR] rx seq=%u t=%u h=%u mq135=%u mq2=%u flame=%u status=0x%02X\r\n",
                frame.seq, frame.temp, frame.humi, frame.mq135_adc, frame.mq2_adc,
                frame.flame, frame.status);
+        Monitor_PrintFrontendJson(&frame);
       }
       else
       {
@@ -853,10 +857,53 @@ static uint8_t Monitor_Warn(void)
           (g_latest_frame.mq2_adc >= th->smoke_warn)) ? 1u : 0u;
 }
 
+static uint8_t Monitor_Muted(void)
+{
+  const uint32_t now = HAL_GetTick();
+  return ((int32_t)(g_mute_until_ms - now) > 0) ? 1u : 0u;
+}
+
+static const char *Monitor_AlarmState(void)
+{
+  if (Monitor_Danger())
+  {
+    return "danger";
+  }
+  if (Monitor_NodeLost())
+  {
+    return "node_lost";
+  }
+  if (Monitor_Warn())
+  {
+    return "warn";
+  }
+  return "normal";
+}
+
+static void Monitor_PrintFrontendJson(const SensorFrame *frame)
+{
+  printf("{\"type\":\"sensor\",\"seq\":%u,\"tickMs\":%lu,\"tempC\":%u,"
+         "\"humidityPct\":%u,\"mq135Raw\":%u,\"mq2Raw\":%u,\"flame\":%u,"
+         "\"status\":%u,\"alarm\":\"%s\",\"thresholdProfile\":%u,"
+         "\"mute\":%u,\"flashReady\":%u}\n",
+         (unsigned int)frame->seq,
+         (unsigned long)HAL_GetTick(),
+         (unsigned int)frame->temp,
+         (unsigned int)frame->humi,
+         (unsigned int)frame->mq135_adc,
+         (unsigned int)frame->mq2_adc,
+         (unsigned int)frame->flame,
+         (unsigned int)frame->status,
+         Monitor_AlarmState(),
+         (unsigned int)g_threshold_profile,
+         (unsigned int)Monitor_Muted(),
+         (unsigned int)g_flash_present);
+}
+
 static void Monitor_UpdateAlarm(void)
 {
   const uint32_t now = HAL_GetTick();
-  const uint8_t muted = ((int32_t)(g_mute_until_ms - now) > 0) ? 1u : 0u;
+  const uint8_t muted = Monitor_Muted();
 
   /* Alarm priority is important: real danger beats node-lost, node-lost beats
    * normal warning, and muted only suppresses the buzzer, not the LED color.

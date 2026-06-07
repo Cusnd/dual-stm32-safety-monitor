@@ -42,6 +42,7 @@ flowchart LR
 - USART3 `PB10/PB11` is used for direct board-to-board communication.
 - Monitor-side USART3 reception uses an interrupt ring buffer to avoid losing bytes during OLED refresh.
 - Lightweight frame protocol with header, payload length, sequence number, status byte, and checksum.
+- Board B prints JSON Lines on USART1 for the browser Web Serial dashboard while keeping the original debug logs.
 - OLED UI, RGB status light, buzzer alarm, button interaction, node-lost detection, and optional W25Q64 log records.
 - `.ioc` is updated to match the firmware pin map as closely as a single dual-role CubeMX file can.
 
@@ -75,6 +76,8 @@ Full wiring notes are in [WIRING.md](WIRING.md).
 - [docs/BOARD_AND_CHIP_REFERENCE.en.md](docs/BOARD_AND_CHIP_REFERENCE.en.md) / [中文](docs/BOARD_AND_CHIP_REFERENCE.zh-CN.md): board, expansion board, and STM32F103C8T6 chip reference.
 - [docs/MODULE_REFERENCE.en.md](docs/MODULE_REFERENCE.en.md) / [中文](docs/MODULE_REFERENCE.zh-CN.md): module reference for DHT11, MQ sensors, flame sensor, OLED, buzzer, and W25Q64.
 - [docs/CLION_CMAKE_GUIDE.en.md](docs/CLION_CMAKE_GUIDE.en.md) / [中文](docs/CLION_CMAKE_GUIDE.zh-CN.md): CLion + CMake Presets workflow guide.
+- [docs/FRONTEND_SERIAL_DASHBOARD.en.md](docs/FRONTEND_SERIAL_DASHBOARD.en.md) / [中文](docs/FRONTEND_SERIAL_DASHBOARD.zh-CN.md): Web Serial frontend dashboard guide.
+- [docs/FRONTEND_TEST_RECORD.en.md](docs/FRONTEND_TEST_RECORD.en.md) / [中文](docs/FRONTEND_TEST_RECORD.zh-CN.md): frontend and firmware verification record.
 - [docs/FUNCTION_GUIDE.md](docs/FUNCTION_GUIDE.md): bilingual beginner guide to the main firmware functions.
 - [docs/FUNCTION_DESIGN_WALKTHROUGH.en.md](docs/FUNCTION_DESIGN_WALKTHROUGH.en.md) / [中文](docs/FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md): detailed function design, coordination logic, and diagram-driven walkthrough.
 - [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md): bilingual repository layout and modification guide.
@@ -120,6 +123,16 @@ cmake --build --preset MonitorDebug
 
 See [docs/CLION_CMAKE_GUIDE.en.md](docs/CLION_CMAKE_GUIDE.en.md) for the detailed CLion workflow. `MDK-ARM/` is kept only as reference material, not as the primary development entry point.
 
+## Web Serial Dashboard
+
+Board B emits machine-readable JSON Lines on the USART1 CH340C debug port. Start the static frontend from the repository root:
+
+```powershell
+python -m http.server 5173 -d frontend
+```
+
+Open `http://localhost:5173` in Chrome or Edge, connect to the Board B CH340C serial port at `115200 8N1`, or use the replay serial button without hardware. See [docs/FRONTEND_SERIAL_DASHBOARD.en.md](docs/FRONTEND_SERIAL_DASHBOARD.en.md).
+
 ## Frame Protocol
 
 Board A sends one 13-byte frame per second. MQ readings and flame state are refreshed in every frame; DHT11 is refreshed at a greater-than-2-second interval required by the module manual, and skipped frames reuse the last temperature/humidity reading.
@@ -162,6 +175,7 @@ K2 long press cycles threshold profiles.
 ├── Core/                    Application and generated STM32 source
 ├── Drivers/                 CMSIS and STM32F1 HAL drivers
 ├── cmake/                   Toolchain and CubeMX CMake glue
+├── frontend/                Static Web Serial dashboard
 ├── MDK-ARM/                 Keil reference files, not the CLion workflow
 ├── Fire_F103.ioc            CubeMX pin/peripheral reference
 ├── CMakeLists.txt           Top-level firmware build script
