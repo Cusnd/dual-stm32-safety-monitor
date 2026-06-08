@@ -54,8 +54,37 @@ Open `http://localhost:5173`, connect to Board B at `115200 8N1`, or use replay 
 - Only lines starting with `{` are parsed as JSON; `[MONITOR]` and `[SENSOR]` logs are ignored.
 - Dashboard cards show temperature, humidity, MQ135, MQ2, rain, thermistor, flame, and alarm.
 - Trend chart keeps the latest 80 valid records and draws T/H/MQ2/MQ135/RAIN/thermistor series.
-- AI Insights use local rules for MQ, rain, thermistor, flame, DHT, stale data, and node-lost conditions.
-- User Chat answers safety, alarm, MQ2, rain, thermistor, and troubleshooting questions from the current snapshot.
+- AI Insights show a DeepSeek/local hybrid provider by default; local rules still cover MQ, rain, thermistor, flame, DHT, stale data, and node-lost conditions.
+- User Chat sends the current snapshot and recent history to the backend `/api/ai/chat` proxy. If the backend is unavailable, the frontend falls back to local safety, alarm, MQ2, rain, thermistor, and troubleshooting answers.
+
+## AI Integration
+
+The frontend does not call DeepSeek directly and does not store an API key. Keep the DeepSeek key only in a local or cloud backend environment variable. The browser calls the proxy:
+
+```text
+frontend DeepSeekProvider
+        -> POST /api/ai/chat
+        -> backend proxy with DEEPSEEK_API_KEY
+        -> DeepSeek-compatible API
+```
+
+The default request body includes `model`, prompted `messages`, raw `conversation`, compact `snapshot`, `locale`, and `requestType: "chat"`. The default model is `deepseek-v4-flash`; the default proxy endpoint is `/api/ai/chat`.
+
+Optional runtime configuration:
+
+```html
+<script>
+  window.SAFETY_MONITOR_CONFIG = {
+    ai: {
+      mode: "deepseek",
+      endpoint: "/api/ai/chat",
+      model: "deepseek-v4-flash"
+    }
+  };
+</script>
+```
+
+Temporary URL overrides are also supported: `?ai=local`, `?ai=deepseek`, `?aiEndpoint=/api/ai/chat`, and `?aiModel=deepseek-v4-flash`. The AI mode button switches between DeepSeek and local rules and persists the choice in browser local storage.
 
 ## Build Relationship
 
@@ -69,4 +98,4 @@ cmake --preset MonitorDebug
 cmake --build --preset MonitorDebug
 ```
 
-The `Fire_F103_sensor.hex` and `Fire_F103_monitor.hex` names are retained as legacy artifact names.
+The `Env-Monitor_sensor.hex` and `Env-Monitor_monitor.hex` names are the current firmware artifact names.

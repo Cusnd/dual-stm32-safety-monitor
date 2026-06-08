@@ -11,23 +11,23 @@ For a deeper explanation of how these functions coordinate as a complete system,
 
 ## How To Read The Firmware / 如何阅读固件
 
-Start from `main()` in [Core/Src/main.c](../Core/Src/main.c). The firmware is compiled into two different programs by `APP_NODE_ROLE`:
+Start from `main()` in [Core/Src/main.cpp](../Core/Src/main.cpp). The firmware is compiled into two different programs by `APP_NODE_ROLE`:
 
-先从 [Core/Src/main.c](../Core/Src/main.c) 里的 `main()` 看起。项目通过 `APP_NODE_ROLE` 把同一份源码编译成两个不同程序：
+先从 [Core/Src/main.cpp](../Core/Src/main.cpp) 里的 `main()` 看起。项目通过 `APP_NODE_ROLE` 把同一份源码编译成两个不同程序：
 
 | Role / 角色 | Build preset / 构建预设 | Main loop / 主循环 | Board / 板子 |
 |---|---|---|---|
-| Sensor node / 采集节点 | `SensorDebug` | `Sensor_App_Run()` | Board A / 板 A |
-| Monitor node / 显示报警节点 | `MonitorDebug` | `Monitor_App_Run()` | Board B / 板 B |
+| Sensor node / 采集节点 | `SensorDebug` | `SensorNode::run()` | Board A / 板 A |
+| Monitor node / 显示报警节点 | `MonitorDebug` | `MonitorNode::run()` | Board B / 板 B |
 
 The most useful reading order is:
 
 推荐阅读顺序：
 
-1. `main()` and `App_Init()` / 先看入口和初始化。
-2. `Sensor_App_Run()` / 再看板 A 如何采样并发送数据。
-3. `Monitor_App_Run()` / 再看板 B 如何接收、显示和报警。
-4. `Frame_Encode()` and `Frame_Decode()` / 最后看串口数据帧如何打包和校验。
+1. `main()` and role `init()` methods / 先看入口和节点初始化。
+2. `SensorNode::run()` / 再看板 A 如何采样并发送数据。
+3. `MonitorNode::run()` / 再看板 B 如何接收、显示和报警。
+4. `FrameCodec::encode()` and `FrameCodec::decode()` / 最后看串口数据帧如何打包和校验。
 
 ## Startup And Role Selection / 启动与角色选择
 
@@ -35,18 +35,18 @@ The most useful reading order is:
 |---|---|
 | `main()` | Initializes HAL, system clock, GPIO, and application peripherals, then enters the selected role loop. / 初始化 HAL、系统时钟、GPIO 和应用外设，然后进入当前角色的主循环。 |
 | `SystemClock_Config()` | Sets 8 MHz HSE x 9 as 72 MHz SYSCLK, with APB1 at 36 MHz. / 配置 8 MHz 外部晶振经 PLL 倍频到 72 MHz，APB1 为 36 MHz。 |
-| `App_Init()` | Initializes shared peripherals first, then initializes sensor-only or monitor-only peripherals. / 先初始化通用外设，再按角色初始化采集节点或显示节点专用外设。 |
+| `SensorNode::init()` / `MonitorNode::init()` | Initializes role-specific peripherals after shared HAL/USART setup. / 通用 HAL/串口初始化后，再初始化对应节点专用外设。 |
 | `Error_Handler()` | Disables interrupts and stops in an infinite loop when a fatal initialization error occurs. / 出现严重初始化错误时关闭中断并停在死循环。 |
 
 ## Serial Communication / 串口通信
 
 | Function / 函数 | What it does / 作用 |
 |---|---|
-| `Debug_USART1_Init()` | Configures USART1 on `PA9/PA10` for `printf` debugging through the target board USB-UART bridge. / 配置 `PA9/PA10` 上的 USART1，通过目标板 USB 转串口打印调试信息。 |
-| `Node_USART3_Init()` | Configures USART3 on `PB10/PB11` for board-to-board communication. The monitor enables receive interrupt. / 配置 `PB10/PB11` 上的 USART3 做双板通信；显示节点会开启接收中断。 |
-| `USART_SendByte()` | Waits until the UART transmit register is empty, then sends one byte. / 等待串口发送寄存器空闲后发送 1 个字节。 |
-| `USART_SendBuffer()` | Sends a byte array by repeatedly calling `USART_SendByte()`. / 循环调用 `USART_SendByte()` 发送一段字节数组。 |
-| `USART_ReadByte()` | Reads one byte from USART3 ring buffer or from a polling UART; returns `-1` if no byte is available. / 从 USART3 环形缓冲或轮询串口读取 1 字节；没有数据时返回 `-1`。 |
+| `hal::initDebugUsart1()` | Configures USART1 on `PA9/PA10` for `printf` debugging through the target board USB-UART bridge. / 配置 `PA9/PA10` 上的 USART1，通过目标板 USB 转串口打印调试信息。 |
+| `hal::initNodeUsart3()` | Configures USART3 on `PB10/PB11` for board-to-board communication. The monitor enables receive interrupt. / 配置 `PB10/PB11` 上的 USART3 做双板通信；显示节点会开启接收中断。 |
+| `hal::sendUsartByte()` | Waits until the UART transmit register is empty, then sends one byte. / 等待串口发送寄存器空闲后发送 1 个字节。 |
+| `hal::sendUsartBuffer()` | Sends a byte array by repeatedly calling `hal::sendUsartByte()`. / 循环调用 `hal::sendUsartByte()` 发送一段字节数组。 |
+| `hal::readUsartByte()` | Reads one byte from USART3 ring buffer or from a polling UART; returns `-1` if no byte is available. / 从 USART3 环形缓冲或轮询串口读取 1 字节；没有数据时返回 `-1`。 |
 | `USART3_IRQHandler()` | Interrupt handler that stores received USART3 bytes into a ring buffer. / USART3 中断服务函数，把收到的字节放进环形缓冲。 |
 | `__io_putchar()` | Redirects `printf()` output to USART1. / 把 `printf()` 输出重定向到 USART1。 |
 
@@ -54,14 +54,14 @@ The most useful reading order is:
 
 | Function / 函数 | What it does / 作用 |
 |---|---|
-| `Sensor_App_Run()` | Board A super-loop: sends one frame per second, refreshes MQ/flame every frame, refreshes DHT11 at a safe interval, smooths MQ values, and prints debug logs. / 板 A 主循环：每秒发送一帧，每帧刷新 MQ/火焰，按安全间隔刷新 DHT11，平滑 MQ 数值，并打印调试日志。 |
-| `Sensor_GPIO_Init()` | Configures DHT11, flame sensor, MQ135, and MQ2 pins. / 配置 DHT11、火焰模块、MQ135 和 MQ2 使用的引脚。 |
-| `ADC1_Init_Custom()` | Enables and calibrates ADC1 for MQ sensor analog readings. / 使能并校准 ADC1，用于读取 MQ 传感器模拟量。 |
-| `ADC1_ReadChannel()` | Performs one ADC conversion on the selected channel and returns a 12-bit value. / 对指定 ADC 通道采样一次，返回 12 位原始值。 |
+| `SensorNode::run()` | Board A super-loop: sends one frame per second, refreshes MQ/flame every frame, refreshes DHT11 at a safe interval, smooths MQ values, and prints debug logs. / 板 A 主循环：每秒发送一帧，每帧刷新 MQ/火焰，按安全间隔刷新 DHT11，平滑 MQ 数值，并打印调试日志。 |
+| `SensorNode::init()` | Configures DHT11, flame sensor, MQ135, MQ2, rain, thermistor pins, and ADC1. / 配置 DHT11、火焰、MQ、雨量、热敏引脚以及 ADC1。 |
+| `hal::initAdc1()` | Enables and calibrates ADC1 for analog readings. / 使能并校准 ADC1，用于读取模拟量。 |
+| `hal::readAdc1Channel()` | Performs one ADC conversion on the selected channel and returns a 12-bit value. / 对指定 ADC 通道采样一次，返回 12 位原始值。 |
 | `DHT11_SetOutput()` | Sets the DHT11 data pin as open-drain output so the MCU can send the start signal. / 将 DHT11 数据脚设为开漏输出，用于 MCU 发送起始信号。 |
 | `DHT11_SetInput()` | Sets the DHT11 data pin as input so the sensor can drive the bus. / 将 DHT11 数据脚设为输入，让传感器接管总线。 |
 | `DHT11_WaitLevel()` | Waits for the DHT11 line to become high or low, with a microsecond timeout. / 等待 DHT11 数据线变为指定电平，带微秒级超时。 |
-| `DHT11_Read()` | Reads humidity and temperature from DHT11 and verifies its checksum. / 读取 DHT11 温湿度并校验数据和。 |
+| `Dht11::read()` | Reads humidity and temperature from DHT11 and verifies its checksum. / 读取 DHT11 温湿度并校验数据和。 |
 | `Sensor_SendFrame()` | Encodes one `SensorFrame` and sends it over USART3. / 将一个 `SensorFrame` 编码后通过 USART3 发出。 |
 
 ## Frame Protocol / 数据帧协议
@@ -69,8 +69,8 @@ The most useful reading order is:
 | Function / 函数 | What it does / 作用 |
 |---|---|
 | `Frame_Checksum()` | Adds bytes together and returns the low 8 bits as checksum. / 将字节累加，并取低 8 位作为校验和。 |
-| `Frame_Encode()` | Converts a `SensorFrame` structure into the 22-byte v2 wire format. / 把 `SensorFrame` 结构体转换成 22 字节 v2 串口帧。 |
-| `Frame_Decode()` | Checks header, length, checksum, then converts bytes back into `SensorFrame`. / 检查帧头、长度和校验和，再把字节还原成 `SensorFrame`。 |
+| `FrameCodec::encode()` | Converts a `SensorFrame` structure into the 22-byte v2 wire format. / 把 `SensorFrame` 结构体转换成 22 字节 v2 串口帧。 |
+| `FrameCodec::decode()` | Checks header, length, checksum, then converts bytes back into `SensorFrame`. / 检查帧头、长度和校验和，再把字节还原成 `SensorFrame`。 |
 
 Frame format:
 
@@ -88,15 +88,15 @@ AA 55 LEN VER TEMP HUMI MQ135 MQ2 RAIN THERM THERM_C10 FLAME RAIN_WET THERM_HOT 
 
 | Function / 函数 | What it does / 作用 |
 |---|---|
-| `Monitor_App_Run()` | Board B super-loop: receives frames, handles buttons, updates alarm, refreshes OLED, and logs to flash if present. / 板 B 主循环：接收数据帧、处理按键、更新报警、刷新 OLED，并在有 Flash 时记录日志。 |
+| `MonitorNode::run()` | Board B super-loop: receives frames, handles buttons, updates alarm, refreshes OLED, and logs to flash if present. / 板 B 主循环：接收数据帧、处理按键、更新报警、刷新 OLED，并在有 Flash 时记录日志。 |
 | `Monitor_GPIO_Init()` | Configures buzzer, OLED software-I2C pins, and initial RGB LED state. / 配置蜂鸣器、OLED 软件 I2C 引脚和 RGB 初始状态。 |
-| `Monitor_ProcessRx()` | Pulls bytes from the ring buffer, searches for `AA 55`, decodes complete frames, and updates latest data. / 从环形缓冲取字节，寻找 `AA 55` 帧头，解码完整数据帧并更新最新数据。 |
+| `MonitorNode::processRx()` | Pulls bytes from the ring buffer, searches for `AA 55`, decodes complete frames, and updates latest data. / 从环形缓冲取字节，寻找 `AA 55` 帧头，解码完整数据帧并更新最新数据。 |
 | `Monitor_UpdateButtons()` | Detects K1/K2 edges: K1 switches page, K2 short press mutes, K2 long press changes threshold profile. / 检测 K1/K2 边沿：K1 切页，K2 短按静音，K2 长按切换阈值档位。 |
 | `Monitor_NodeLost()` | Returns true when no valid sensor frame has arrived for more than 3 seconds. / 超过 3 秒没有收到合法采集帧时返回真。 |
 | `Monitor_Danger()` | Checks flame, serious smoke, and thermistor high-temperature conditions. / 判断火焰、烟雾严重超标和热敏高温。 |
 | `Monitor_Warn()` | Checks air/smoke, rain wet, thermistor warning, and DHT11 error status. / 判断空气/烟雾、雨量湿态、热敏预警和 DHT11 错误状态。 |
 | `Monitor_UpdateAlarm()` | Selects LED color and buzzer pattern according to alarm priority. / 按报警优先级选择 LED 颜色和蜂鸣器节奏。 |
-| `Monitor_UpdateDisplay()` | Writes the current page to the OLED. / 将当前页面内容写到 OLED。 |
+| `MonitorNode::updateDisplay()` | Writes the current page to the OLED. / 将当前页面内容写到 OLED。 |
 | `LED_Set()` | Controls the active-low on-board RGB LED. / 控制低电平点亮的板载 RGB LED。 |
 | `Buzzer_Set()` | Turns the buzzer on or off. / 打开或关闭蜂鸣器。 |
 | `WS2813_Init_Custom()` | Configures TIM3_CH1 + DMA for external RGB output. / 配置 TIM3_CH1 + DMA，用于外置 RGB 输出。 |
@@ -139,7 +139,7 @@ These functions implement a tiny SSD1306-style software-I2C display driver. It i
 | `Flash_ReadData()` | Reads arbitrary bytes from W25Q64. / 从 W25Q64 读取任意字节。 |
 | `Flash_LoadMetadata()` | Restores the circular-log cursor from sector 0 metadata. / 从 sector 0 元数据恢复环形日志游标。 |
 | `Flash_WriteMetadata()` | Appends the next cursor metadata entry. / 追加写入下一条游标元数据。 |
-| `Flash_LogFrame()` | Saves one fixed 32-byte v2 circular-log record. / 写入一条固定 32 字节 v2 环形日志记录。 |
+| `W25q64FlashLogger::logFrame()` | Saves one fixed 32-byte v2 circular-log record. / 写入一条固定 32 字节 v2 环形日志记录。 |
 
 ## Common Beginner Questions / 初学者常见问题
 
@@ -156,7 +156,7 @@ USART1 `PA9/PA10` is kept for the target board USB-UART debug bridge, so board-t
 USART1 的 `PA9/PA10` 保留给目标板 USB 转串口调试桥，双板通信因此使用 USART3。
 
 **Where should I add a new sensor?**  
-Add its pin definitions near the existing sensor pin macros, initialize the GPIO/ADC in `Sensor_GPIO_Init()` or `ADC1_Init_Custom()`, read it in `Sensor_App_Run()`, and extend the frame protocol only if the monitor also needs the new value.
+Add its pin definitions in `App/BoardPins.hpp`, initialize the GPIO/ADC in `SensorNode::init()` or a driver class, read it in `SensorNode::run()`, and extend the frame protocol only if the monitor also needs the new value.
 
 **如果要加新传感器，应该改哪里？**  
-先在现有传感器宏附近添加引脚定义，再到 `Sensor_GPIO_Init()` 或 `ADC1_Init_Custom()` 初始化，在 `Sensor_App_Run()` 读取；如果板 B 也需要显示该值，再扩展数据帧协议。
+先在 `App/BoardPins.hpp` 添加引脚定义，再到 `SensorNode::init()` 或对应驱动类初始化，在 `SensorNode::run()` 读取；如果板 B 也需要显示该值，再扩展数据帧协议。

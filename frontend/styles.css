@@ -46,6 +46,11 @@ button:focus-visible {
   outline: none;
 }
 
+button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
 .shell {
   width: min(1180px, calc(100vw - 32px));
   margin: 0 auto;
@@ -327,6 +332,26 @@ h2 {
   font-weight: 800;
 }
 
+.ai-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 8px;
+  font-size: 0.78rem;
+}
+
+.mode-toggle[data-mode="local"] .button-icon {
+  color: var(--teal);
+}
+
 .risk-strip {
   display: flex;
   align-items: center;
@@ -423,6 +448,11 @@ h2 {
 #chatMessages li.user {
   border-color: #b9c7ff;
   background: #f5f7ff;
+}
+
+#chatMessages li.pending {
+  border-style: dashed;
+  color: var(--muted);
 }
 
 #chatMessages span {
@@ -528,6 +558,15 @@ h2 {
 
   .side-panel {
     grid-template-columns: 1fr;
+  }
+
+  .ai-panel .panel-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ai-heading-actions {
+    justify-content: flex-start;
   }
 }
 

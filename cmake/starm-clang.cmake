@@ -45,7 +45,7 @@ set(CMAKE_C_FLAGS_RELEASE "-Oz -g0")
 set(CMAKE_CXX_FLAGS_DEBUG "-Og -g3")
 set(CMAKE_CXX_FLAGS_RELEASE "-Oz -g0")
 
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fno-rtti -fno-exceptions -fno-threadsafe-statics")
+set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fno-rtti -fno-exceptions -fno-threadsafe-statics -fno-use-cxa-atexit")
 
 set(CMAKE_EXE_LINKER_FLAGS "${TARGET_FLAGS}")
 

@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-# Enable CMake support for ASM and C languages
-enable_language(C ASM)
+enable_language(C CXX ASM)
 # STM32CubeMX generated symbols (macros)
 # USE_HAL_DRIVER enables the HAL headers, while STM32F103xB selects the correct
 # CMSIS device header for this 64 KB flash part.
@@ -20,10 +19,10 @@ set(MX_Include_Dirs
 )
 
 # STM32CubeMX generated application sources
-# main.c contains the hand-written dual-node application.  The other Core/Src
-# files are CubeMX support files kept in the normal STM32 project structure.
+# main.cpp contains the small C++ entry point.  The other Core/Src files are
+# CubeMX support files kept in the normal STM32 project structure.
 set(MX_Application_Src
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/main.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/gpio.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/stm32f1xx_it.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Core/Src/stm32f1xx_hal_msp.c

@@ -31,7 +31,7 @@ SIG + 电位器 -> 可选 LM393 DO
 
 ## 固件映射
 
-- `ADC1_ReadChannel(6)` 采样雨量。
+- `hal::readAdc1Channel(6)` 采样雨量。
 - 默认湿态阈值从原始值 `1400` 起步。
 - JSON 字段：`rainRaw`、`rainWet`；状态位：`bit2`。
 

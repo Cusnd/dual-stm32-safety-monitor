@@ -3,8 +3,8 @@
  * Auto generated Run-Time-Environment Configuration File
  *      *** Do not modify ! ***
  *
- * Project: 'Fire_F103' 
- * Target:  'Fire_F103' 
+ * Project: 'Env-Monitor' 
+ * Target:  'Env-Monitor' 
  */
 
 #ifndef RTE_COMPONENTS_H

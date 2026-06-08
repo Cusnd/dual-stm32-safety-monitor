@@ -31,7 +31,7 @@ GND -> GND
 
 ## 固件映射
 
-- `DHT11_Read()` 发送开始脉冲、切换 GPIO 输入、读取 40 bit 并校验。
+- `Dht11::read()` 发送开始脉冲、切换 GPIO 输入、读取 40 bit 并校验。
 - `DHT11_PERIOD_MS` 控制安全采样间隔。
 - 失败时设置 `status bit0`。
 

@@ -32,6 +32,6 @@ This document is now a board-level index for the generic STM32F103C8T6 dual-boar
 | WS2813E RGB LED | [hardware/chips/ws2813e.en.md](hardware/chips/ws2813e.en.md) |
 | 10K NTC B3950 | [hardware/chips/10k-ntc-b3950.en.md](hardware/chips/10k-ntc-b3950.en.md) |
 
-## Legacy Names
+## Project Artifact Names
 
-`Fire_F103.ioc`, `Fire_F103_sensor.hex`, and `Fire_F103_monitor.hex` remain repository artifact names. They are not board-vendor requirements.
+`Env-Monitor.ioc`, `Env-Monitor_sensor.hex`, and `Env-Monitor_monitor.hex` are project artifact names. They are not board-vendor requirements.

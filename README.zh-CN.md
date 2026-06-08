@@ -91,10 +91,10 @@ cmake --build --preset MonitorDebug
 
 | Preset | 输出文件 | 烧录到 |
 |---|---|---|
-| `SensorDebug` | `build/SensorDebug/Fire_F103_sensor.hex` | 板 A |
-| `MonitorDebug` | `build/MonitorDebug/Fire_F103_monitor.hex` | 板 B |
+| `SensorDebug` | `build/SensorDebug/Env-Monitor_sensor.hex` | 板 A |
+| `MonitorDebug` | `build/MonitorDebug/Env-Monitor_monitor.hex` | 板 B |
 
-`Fire_F103.*` 名称只作为仓库历史产物名保留，不表示必须使用某个厂商硬件。
+`Env-Monitor.*` 是当前固件产物名，不表示必须使用某个厂商硬件。
 
 ## Web Serial 看板
 

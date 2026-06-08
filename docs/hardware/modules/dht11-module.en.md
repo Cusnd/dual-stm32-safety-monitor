@@ -33,7 +33,7 @@ GND -> GND
 ## Firmware Mapping
 
 - `DHT11_PORT/PIN` = `GPIOB/PB12`.
-- `DHT11_Read()` verifies the 40-bit checksum.
+- `Dht11::read()` verifies the 40-bit checksum.
 - `status bit0` reports read failure.
 
 ## Test And Faults

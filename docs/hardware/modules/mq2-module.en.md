@@ -31,7 +31,7 @@ AO + potentiometer -> LM393 -> optional DO
 
 ## Firmware Mapping
 
-- `ADC1_ReadChannel(5)` samples MQ2.
+- `hal::readAdc1Channel(5)` samples MQ2.
 - `smoke_warn` and `smoke_danger` thresholds come from the active profile.
 - JSON field: `mq2Raw`.
 

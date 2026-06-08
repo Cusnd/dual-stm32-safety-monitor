@@ -57,8 +57,8 @@ void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : KEY2_Pin */
   /* K1/K2 use external pull-down resistors on the core board and go high when
-     pressed, matching the monitor button logic in main.c.
-     K1/K2 在核心板上使用外部下拉，按下后变为高电平，与 main.c 中的按键
+     pressed, matching the monitor button logic in App/MonitorNode.cpp.
+     K1/K2 在核心板上使用外部下拉，按下后变为高电平，与 MonitorNode 中的按键
      判断逻辑一致。 */
   GPIO_InitStruct.Pin = KEY2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;

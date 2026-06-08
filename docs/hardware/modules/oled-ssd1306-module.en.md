@@ -33,7 +33,7 @@ GND -> GND
 ## Firmware Mapping
 
 - `OLED_Init_Custom()` initializes SSD1306.
-- `Monitor_UpdateDisplay()` writes four text lines.
+- `MonitorNode::updateDisplay()` writes four text lines.
 - I2C address is the common `0x3C` module address.
 
 ## Fault Symptoms

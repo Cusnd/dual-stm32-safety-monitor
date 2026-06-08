@@ -22,7 +22,7 @@
         {
             "name": "SensorDebug",
             "displayName": "Board A sensor node",
-            "description": "Compiles APP_NODE_ROLE=SENSOR and outputs Fire_F103_sensor.* for the acquisition board.",
+            "description": "Compiles APP_NODE_ROLE=SENSOR and outputs Env-Monitor_sensor.* for the acquisition board.",
             "inherits": "default",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
@@ -32,7 +32,7 @@
         {
             "name": "MonitorDebug",
             "displayName": "Board B monitor node",
-            "description": "Compiles APP_NODE_ROLE=MONITOR and outputs Fire_F103_monitor.* for OLED, alarm, buttons, and flash logging.",
+            "description": "Compiles APP_NODE_ROLE=MONITOR and outputs Env-Monitor_monitor.* for OLED, alarm, buttons, and flash logging.",
             "inherits": "default",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",

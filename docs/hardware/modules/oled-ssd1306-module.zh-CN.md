@@ -33,7 +33,7 @@ GND -> GND
 ## 固件映射
 
 - `OLED_Init_Custom()` 初始化 SSD1306。
-- `Monitor_UpdateDisplay()` 写 4 行文本。
+- `MonitorNode::updateDisplay()` 写 4 行文本。
 - I2C 地址使用常见模块地址 `0x3C`。
 
 ## 故障现象

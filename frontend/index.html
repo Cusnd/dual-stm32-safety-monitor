@@ -69,7 +69,13 @@
           <section class="ai-panel" aria-live="polite">
             <div class="panel-heading">
               <h2 data-i18n="aiInsights">AI 洞察</h2>
-              <span id="aiProviderBadge" class="provider-badge">本地规则</span>
+              <div class="ai-heading-actions">
+                <button id="aiModeButton" class="mode-toggle" type="button">
+                  <span class="button-icon" aria-hidden="true">DS</span>
+                  <span data-label>DeepSeek</span>
+                </button>
+                <span id="aiProviderBadge" class="provider-badge">本地规则</span>
+              </div>
             </div>
             <div class="risk-strip">
               <span data-i18n="aiRisk">风险等级</span>

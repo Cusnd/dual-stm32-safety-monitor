@@ -31,7 +31,7 @@ AO + 电位器 -> LM393 -> 可选 DO
 
 ## 固件映射
 
-- `ADC1_ReadChannel(5)` 采样 MQ2。
+- `hal::readAdc1Channel(5)` 采样 MQ2。
 - `smoke_warn` 和 `smoke_danger` 来自当前阈值档位。
 - JSON 字段：`mq2Raw`。
 

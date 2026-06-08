@@ -3,6 +3,9 @@ import { thresholdForProfile } from "./analysis.js";
 const phrases = {
   "zh-CN": {
     localProvider: "本地规则",
+    deepSeekProvider: "DeepSeek",
+    hybridProvider: "DeepSeek / 本地规则",
+    fallbackProvider: "本地规则兜底",
     noData: "现在还没有有效数据。先启动模拟串口或连接板 B 串口，我再帮你分析。",
     stale: "不建议判断为安全。当前数据已经超时，先检查板间通信和板 B 串口输出。",
     safe: (snapshot) => `当前风险等级是「${snapshot.riskLabel}」。${snapshot.summary} 关键依据：${snapshot.reasons.join("；")}`,
@@ -12,10 +15,14 @@ const phrases = {
     therm: (latest, thresholds) => `热敏温度当前为 ${Number.isFinite(latest.thermC10) ? (latest.thermC10 / 10).toFixed(1) : "--"}°C，预警阈值 ${(thresholds.thermWarnC10 / 10).toFixed(1)}°C，危险阈值 ${(thresholds.thermDangerC10 / 10).toFixed(1)}°C。${latest.thermHot ? "DO 高温已经触发。" : "DO 高温暂未触发。"}`,
     next: (snapshot) => `建议：${snapshot.recommendations.join("；")}`,
     default: (snapshot) => `我看到当前状态是「${snapshot.riskLabel}」。${snapshot.summary} 建议：${snapshot.recommendations.join("；")}`,
-    disabled: "DeepSeek provider is disabled; use a backend proxy before enabling it.",
+    disabled: "DeepSeek 后端代理未启用，已切换到本地规则。",
+    emptyReply: "后端没有返回可显示的回复。",
   },
   en: {
     localProvider: "Local rules",
+    deepSeekProvider: "DeepSeek",
+    hybridProvider: "DeepSeek / Local rules",
+    fallbackProvider: "Local fallback",
     noData: "No valid data is available yet. Start replay or connect Board B serial first.",
     stale: "I would not call it safe. The data is stale, so check board communication and Board B serial output.",
     safe: (snapshot) => `Current risk level is ${snapshot.riskLabel}. ${snapshot.summary} Evidence: ${snapshot.reasons.join("; ")}`,
@@ -25,7 +32,8 @@ const phrases = {
     therm: (latest, thresholds) => `Thermistor is ${Number.isFinite(latest.thermC10) ? (latest.thermC10 / 10).toFixed(1) : "--"}°C; warning threshold is ${(thresholds.thermWarnC10 / 10).toFixed(1)}°C and danger threshold is ${(thresholds.thermDangerC10 / 10).toFixed(1)}°C. ${latest.thermHot ? "The DO high-temperature output is triggered." : "The DO high-temperature output is not triggered."}`,
     next: (snapshot) => `Recommendation: ${snapshot.recommendations.join("; ")}`,
     default: (snapshot) => `Current state is ${snapshot.riskLabel}. ${snapshot.summary} Recommendation: ${snapshot.recommendations.join("; ")}`,
-    disabled: "DeepSeek provider is disabled; use a backend proxy before enabling it.",
+    disabled: "DeepSeek proxy is disabled; using local rules.",
+    emptyReply: "The backend returned no displayable reply.",
   },
 };
 
@@ -36,6 +44,142 @@ function p(locale) {
 function lastUserText(messages) {
   const last = [...messages].reverse().find((message) => message.role === "user");
   return String(last?.content ?? "").toLowerCase();
+}
+
+function safeMessage(message) {
+  return {
+    role: message.role === "assistant" ? "assistant" : message.role === "system" ? "system" : "user",
+    content: String(message.content ?? "").slice(0, 2000),
+  };
+}
+
+function compactFrame(frame) {
+  if (!frame) {
+    return null;
+  }
+
+  return {
+    seq: frame.seq,
+    tickMs: frame.tickMs,
+    tempC: frame.tempC,
+    humidityPct: frame.humidityPct,
+    mq135Raw: frame.mq135Raw,
+    mq2Raw: frame.mq2Raw,
+    rainRaw: frame.rainRaw,
+    thermC10: frame.thermC10,
+    flame: frame.flame,
+    rainWet: frame.rainWet,
+    thermHot: frame.thermHot,
+    alarm: frame.alarm,
+    status: frame.status,
+    thresholdProfile: frame.thresholdProfile,
+    mute: frame.mute,
+    flashReady: frame.flashReady,
+    flashRecords: frame.flashRecords,
+    externalRgb: frame.externalRgb,
+    schemaVersion: frame.schemaVersion,
+    receivedAt: frame.receivedAt,
+  };
+}
+
+function compactSnapshot(snapshot) {
+  return {
+    latest: compactFrame(snapshot.latest),
+    history: (snapshot.history ?? []).slice(-12).map(compactFrame),
+    stale: snapshot.stale,
+    riskLevel: snapshot.riskLevel,
+    riskLabel: snapshot.riskLabel,
+    summary: snapshot.summary,
+    reasons: snapshot.reasons,
+    trends: snapshot.trends,
+    recommendations: snapshot.recommendations,
+    thresholds: snapshot.thresholds,
+    generatedAt: snapshot.generatedAt,
+    freshness: snapshot.freshness,
+  };
+}
+
+function systemPrompt(locale) {
+  if (locale === "zh-CN") {
+    return [
+      "你是双 STM32F103 环境安全监测系统的值守助手。",
+      "只基于当前传感器快照和最近历史回答，不编造硬件状态。",
+      "回答要短、明确，并优先说明风险等级、关键证据和下一步动作。",
+    ].join("");
+  }
+
+  return [
+    "You are the duty assistant for a dual STM32F103 environmental safety monitor.",
+    "Answer only from the current sensor snapshot and recent history; do not invent hardware state.",
+    "Keep replies concise and prioritize risk level, evidence, and next action.",
+  ].join(" ");
+}
+
+function buildBackendMessages(messages, snapshot, locale) {
+  return [
+    { role: "system", content: systemPrompt(locale) },
+    {
+      role: "system",
+      content: `Current sensor analysis snapshot:\n${JSON.stringify(compactSnapshot(snapshot), null, 2)}`,
+    },
+    ...messages.slice(-10).map(safeMessage),
+  ];
+}
+
+function extractAssistantContent(payload) {
+  if (!payload || typeof payload !== "object") {
+    return typeof payload === "string" ? payload : "";
+  }
+
+  const direct = payload.content ?? payload.reply ?? payload.answer ?? payload.text;
+  if (typeof direct === "string") {
+    return direct;
+  }
+
+  const messageContent = payload.message?.content ?? payload.data?.message?.content ?? payload.data?.content;
+  if (typeof messageContent === "string") {
+    return messageContent;
+  }
+
+  const choiceContent = payload.choices?.[0]?.message?.content ?? payload.choices?.[0]?.delta?.content;
+  return typeof choiceContent === "string" ? choiceContent : "";
+}
+
+function normalizeAssistantReply(payload, provider, locale) {
+  if (payload?.role === "assistant" && typeof payload.content === "string") {
+    return {
+      role: "assistant",
+      content: payload.content,
+      provider: payload.provider ?? provider,
+    };
+  }
+
+  const content = extractAssistantContent(payload).trim();
+  return {
+    role: "assistant",
+    content: content || p(locale).emptyReply,
+    provider: payload?.provider ?? provider,
+  };
+}
+
+async function readResponsePayload(response) {
+  const contentType = response.headers.get("Content-Type") ?? "";
+  if (contentType.toLowerCase().includes("application/json")) {
+    return response.json();
+  }
+
+  return response.text();
+}
+
+async function fetchJsonWithTimeout(url, options, timeoutMs) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export class LocalInsightProvider {
@@ -101,32 +245,68 @@ export class LocalInsightProvider {
 }
 
 export class DeepSeekProvider {
-  constructor({ endpoint = "/api/ai/chat", model = "deepseek-v4-flash", enabled = false } = {}) {
+  constructor({
+    endpoint = "/api/ai/chat",
+    model = "deepseek-v4-flash",
+    enabled = true,
+    timeoutMs = 12000,
+    fallbackToLocal = true,
+  } = {}) {
     this.id = "deepseek";
     this.endpoint = endpoint;
     this.model = model;
     this.enabled = enabled;
+    this.timeoutMs = timeoutMs;
+    this.fallbackToLocal = fallbackToLocal;
+    this.localProvider = new LocalInsightProvider();
   }
 
   analyze(snapshot, locale = "zh-CN") {
-    return new LocalInsightProvider().analyze(snapshot, locale);
+    const insight = this.localProvider.analyze(snapshot, locale);
+    return {
+      ...insight,
+      provider: this.enabled ? p(locale).hybridProvider : p(locale).localProvider,
+    };
   }
 
   async chat({ messages, snapshot, locale = "zh-CN" }) {
     if (!this.enabled) {
-      throw new Error(p(locale).disabled);
+      return this.localProvider.chat({ messages, snapshot, locale });
     }
 
-    const response = await fetch(this.endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: this.model, messages, snapshot, locale }),
-    });
+    const requestBody = {
+      model: this.model,
+      messages: buildBackendMessages(messages, snapshot, locale),
+      conversation: messages.slice(-10).map(safeMessage),
+      snapshot: compactSnapshot(snapshot),
+      locale,
+      requestType: "chat",
+    };
 
-    if (!response.ok) {
-      throw new Error(`DeepSeek proxy failed: HTTP ${response.status}`);
+    try {
+      const response = await fetchJsonWithTimeout(this.endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      }, this.timeoutMs);
+
+      if (!response.ok) {
+        throw new Error(`DeepSeek proxy HTTP ${response.status}`);
+      }
+
+      const payload = await readResponsePayload(response);
+      return normalizeAssistantReply(payload, p(locale).deepSeekProvider, locale);
+    } catch (error) {
+      if (!this.fallbackToLocal) {
+        throw error;
+      }
+
+      const reply = await this.localProvider.chat({ messages, snapshot, locale });
+      return {
+        ...reply,
+        provider: p(locale).fallbackProvider,
+        fallbackReason: error.message ?? String(error),
+      };
     }
-
-    return response.json();
   }
 }

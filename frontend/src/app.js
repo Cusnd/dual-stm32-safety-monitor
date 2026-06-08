@@ -1,5 +1,6 @@
-import { LocalInsightProvider } from "./aiProvider.js";
+import { DeepSeekProvider, LocalInsightProvider } from "./aiProvider.js";
 import { buildAnalysisSnapshot } from "./analysis.js";
+import { persistAiMode, resolveAiConfig } from "./config.js";
 import { alarmLabel, parseSerialLine } from "./parser.js";
 import { ReplaySerialSource } from "./replaySerial.js";
 import { WebSerialSource } from "./serial.js";
@@ -51,6 +52,12 @@ const strings = {
     aiChat: "用户对话",
     chatPlaceholder: "现在安全吗？",
     send: "发送",
+    sending: "分析中",
+    you: "你",
+    aiModeDeepSeek: "DeepSeek",
+    aiModeLocal: "本地",
+    aiModeChanged: "AI 模式",
+    aiFallback: "DeepSeek 暂不可用，已使用本地规则",
     replayStarted: "模拟串口开始",
     replayStopped: "模拟串口停止",
     replayLoop: "模拟串口循环",
@@ -99,6 +106,12 @@ const strings = {
     aiChat: "User Chat",
     chatPlaceholder: "Is it safe now?",
     send: "Send",
+    sending: "Thinking",
+    you: "You",
+    aiModeDeepSeek: "DeepSeek",
+    aiModeLocal: "Local",
+    aiModeChanged: "AI mode",
+    aiFallback: "DeepSeek is unavailable; local rules answered",
     replayStarted: "Replay serial started",
     replayStopped: "Replay serial stopped",
     replayLoop: "Replay serial loop",
@@ -115,8 +128,23 @@ let stale = false;
 let history = [];
 let eventRows = [];
 let chatMessages = [];
+let chatBusy = false;
+let aiConfig = resolveAiConfig();
 
-const aiProvider = new LocalInsightProvider();
+function createAiProvider(config) {
+  if (config.mode === "local") {
+    return new LocalInsightProvider();
+  }
+
+  return new DeepSeekProvider({
+    endpoint: config.endpoint,
+    model: config.model,
+    timeoutMs: config.timeoutMs,
+    fallbackToLocal: config.fallbackToLocal,
+  });
+}
+
+let aiProvider = createAiProvider(aiConfig);
 
 const dom = {
   title: document.querySelector("[data-i18n='title']"),
@@ -134,6 +162,7 @@ const dom = {
   eventLog: document.querySelector("#eventLog"),
   chart: document.querySelector("#trendChart"),
   aiHeading: document.querySelector("[data-i18n='aiInsights']"),
+  aiModeButton: document.querySelector("#aiModeButton"),
   aiProviderBadge: document.querySelector("#aiProviderBadge"),
   aiRiskLabel: document.querySelector("[data-i18n='aiRisk']"),
   aiRiskValue: document.querySelector("#aiRiskValue"),
@@ -172,6 +201,20 @@ function setText(node, value) {
   }
 }
 
+function aiModeLabel() {
+  return aiConfig.mode === "deepseek" ? t("aiModeDeepSeek") : t("aiModeLocal");
+}
+
+function renderAiModeButton() {
+  if (!dom.aiModeButton) {
+    return;
+  }
+
+  dom.aiModeButton.dataset.mode = aiConfig.mode;
+  setText(dom.aiModeButton.querySelector(".button-icon"), aiConfig.mode === "deepseek" ? "DS" : "L");
+  setText(dom.aiModeButton.querySelector("[data-label]"), aiModeLabel());
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -207,6 +250,7 @@ function applyLanguage() {
   dom.chatInput.placeholder = t("chatPlaceholder");
   setText(dom.chatSubmit.querySelector("[data-label]"), t("send"));
   dom.languageButton.textContent = locale === "zh-CN" ? "EN" : "中文";
+  renderAiModeButton();
   render();
 }
 
@@ -318,6 +362,7 @@ function renderInsight() {
   const snapshot = currentSnapshot();
   const insight = aiProvider.analyze(snapshot, locale);
 
+  renderAiModeButton();
   setText(dom.aiProviderBadge, insight.provider);
   setText(dom.aiRiskValue, insight.title);
   dom.aiRiskValue.dataset.risk = insight.riskLevel;
@@ -330,12 +375,15 @@ function renderInsight() {
 function renderChat() {
   dom.chatMessages.innerHTML = chatMessages
     .map((message) => `
-      <li class="${escapeHtml(message.role)}">
-        <span>${message.role === "user" ? "You" : "AI"}</span>
+      <li class="${escapeHtml(message.role)}${message.pending ? " pending" : ""}">
+        <span>${escapeHtml(message.role === "user" ? t("you") : (message.provider ?? "AI"))}</span>
         <p>${escapeHtml(message.content)}</p>
       </li>
     `)
     .join("");
+  dom.chatInput.disabled = chatBusy;
+  dom.chatSubmit.disabled = chatBusy;
+  setText(dom.chatSubmit.querySelector("[data-label]"), chatBusy ? t("sending") : t("send"));
   dom.chatMessages.scrollTop = dom.chatMessages.scrollHeight;
 }
 
@@ -507,31 +555,62 @@ async function toggleReplay() {
 
 async function handleChatSubmit(event) {
   event.preventDefault();
+  if (chatBusy) {
+    return;
+  }
+
   const content = dom.chatInput.value.trim();
   if (!content) {
     return;
   }
 
-  chatMessages = [...chatMessages, { role: "user", content }];
+  const pendingMessage = {
+    role: "assistant",
+    content: t("sending"),
+    provider: aiModeLabel(),
+    pending: true,
+  };
+  chatMessages = [...chatMessages, { role: "user", content }, pendingMessage];
+  chatBusy = true;
   dom.chatInput.value = "";
-  renderChat();
+  render();
 
   try {
     const reply = await aiProvider.chat({
-      messages: chatMessages,
+      messages: chatMessages.filter((message) => !message.pending),
       snapshot: currentSnapshot(),
       locale,
     });
-    chatMessages = [...chatMessages, reply].slice(-12);
+    if (reply.fallbackReason) {
+      addEvent(t("aiFallback"), "warn");
+    }
+    chatMessages = [...chatMessages.filter((message) => !message.pending), reply].slice(-12);
   } catch (error) {
-    chatMessages = [...chatMessages, { role: "assistant", content: error.message ?? String(error) }].slice(-12);
+    chatMessages = [
+      ...chatMessages.filter((message) => !message.pending),
+      { role: "assistant", content: error.message ?? String(error), provider: aiModeLabel() },
+    ].slice(-12);
+  } finally {
+    chatBusy = false;
   }
-  renderChat();
+  render();
+}
+
+function toggleAiMode() {
+  aiConfig = {
+    ...aiConfig,
+    mode: aiConfig.mode === "deepseek" ? "local" : "deepseek",
+  };
+  aiProvider = createAiProvider(aiConfig);
+  persistAiMode(aiConfig.mode);
+  addEvent(`${t("aiModeChanged")}: ${aiModeLabel()}`);
+  render();
 }
 
 dom.connectButton.addEventListener("click", connectSerial);
 dom.disconnectButton.addEventListener("click", disconnectSerial);
 dom.simulationButton.addEventListener("click", toggleReplay);
+dom.aiModeButton.addEventListener("click", toggleAiMode);
 dom.languageButton.addEventListener("click", () => {
   locale = locale === "zh-CN" ? "en" : "zh-CN";
   applyLanguage();

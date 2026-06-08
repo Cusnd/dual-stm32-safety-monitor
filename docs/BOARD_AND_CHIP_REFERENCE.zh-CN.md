@@ -32,6 +32,6 @@
 | WS2813E RGB LED | [hardware/chips/ws2813e.zh-CN.md](hardware/chips/ws2813e.zh-CN.md) |
 | 10K NTC B3950 | [hardware/chips/10k-ntc-b3950.zh-CN.md](hardware/chips/10k-ntc-b3950.zh-CN.md) |
 
-## 历史命名
+## 项目产物命名
 
-`Fire_F103.ioc`、`Fire_F103_sensor.hex`、`Fire_F103_monitor.hex` 仅作为仓库历史产物名保留，不代表必须使用某个厂商硬件。
+`Env-Monitor.ioc`、`Env-Monitor_sensor.hex`、`Env-Monitor_monitor.hex` 是当前项目产物名，不代表必须使用某个厂商硬件。

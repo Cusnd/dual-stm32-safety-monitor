@@ -130,7 +130,7 @@
     \toprule
     目标 & 设计要求 & 对应实现 \\
     \midrule
-    稳定采集 & 每秒发帧，MQ/雨量/热敏每帧采样，DHT11 安全间隔刷新 & \code{Sensor_App_Run()} + 整数滑动平均 \\
+    稳定采集 & 每秒发帧，MQ/雨量/热敏每帧采样，DHT11 安全间隔刷新 & \code{SensorNode::run()} + 整数滑动平均 \\
     可靠通信 & 串口帧能识别错位和噪声 & \code{AA 55} 帧头 + 长度 + checksum \\
     本地报警 & 无需云端即可及时提示风险 & RGB LED + 蜂鸣器 + OLED 状态页 \\
     易演示 & 可观察、可断线恢复、可用按键交互 & USART1 日志、NODE LOST、K1/K2 \\
@@ -227,7 +227,7 @@
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.52\textwidth}
       \begin{block}{核心思想}
-        同一份 \code{Core/Src/main.c} 通过 \code{APP_NODE_ROLE} 生成两个不同固件：
+        同一份 \code{Core/Src/main.cpp + App/} 通过 \code{APP_NODE_ROLE} 生成两个不同固件：
         \begin{itemize}
           \item \code{SensorDebug}：板 A 采集节点
           \item \code{MonitorDebug}：板 B 显示报警节点
@@ -240,9 +240,9 @@
 #define APP_ROLE_MONITOR 2
 
 #if APP_NODE_ROLE == APP_ROLE_SENSOR
-  Sensor_App_Run();
+  SensorNode::run();
 #else
-  Monitor_App_Run();
+  MonitorNode::run();
 #endif
 \end{lstlisting}
     \end{column}
@@ -327,7 +327,7 @@
           \item \code{DHT11_SetOutput()}
           \item \code{DHT11_SetInput()}
           \item \code{DHT11_WaitLevel()}
-          \item \code{DHT11_Read()}
+          \item \code{Dht11::read()}
         \end{itemize}
       \end{block}
     \end{column}
@@ -383,7 +383,7 @@
   \end{tabularx}
   \vspace{0.4em}
   \begin{block}{核心函数}
-    \code{Frame_Encode()} 负责结构体转字节帧，\code{Frame_Decode()} 负责帧头、长度、校验和验证。
+    \code{FrameCodec::encode()} 负责结构体转字节帧，\code{FrameCodec::decode()} 负责帧头、长度、校验和验证。
   \end{block}
 \end{frame}
 
@@ -416,11 +416,11 @@
     \toprule
     任务 & 周期 & 函数与作用 \\
     \midrule
-    串口解析 & 每轮循环 & \code{Monitor_ProcessRx()}，尽快消化接收缓冲 \\
-    按键扫描 & 每轮循环 & \code{Monitor_UpdateButtons()}，保证 K1/K2 响应 \\
-    报警输出 & 100 ms & \code{Monitor_UpdateAlarm()}，更新 LED 和蜂鸣节奏 \\
-    OLED 刷新 & 300 ms & \code{Monitor_UpdateDisplay()}，控制刷新负担 \\
-    Flash 记录 & 10 s & \code{Flash_LogFrame()}，降低写入频率 \\
+    串口解析 & 每轮循环 & \code{MonitorNode::processRx()}，尽快消化接收缓冲 \\
+    按键扫描 & 每轮循环 & \code{MonitorNode::updateButtons()}，保证 K1/K2 响应 \\
+    报警输出 & 100 ms & \code{MonitorNode::updateAlarm()}，更新 LED 和蜂鸣节奏 \\
+    OLED 刷新 & 300 ms & \code{MonitorNode::updateDisplay()}，控制刷新负担 \\
+    Flash 记录 & 10 s & \code{W25q64FlashLogger::logFrame()}，降低写入频率 \\
     \bottomrule
   \end{tabularx}
   \vspace{0.5em}
@@ -500,9 +500,9 @@
     \toprule
     按键 & 操作 & 系统反馈 \\
     \midrule
-    K1 & 短按 & \code{g_page} 翻转，OLED 在监测页与参数页之间切换 \\
+    K1 & 短按 & \code{page_} 翻转，OLED 在监测页与参数页之间切换 \\
     K2 & 短按 & \code{g_mute_until_ms = now + 60000}，蜂鸣器静音 60 秒 \\
-    K2 & 长按 & \code{g_threshold_profile} 递增，切换阈值档位 \\
+    K2 & 长按 & \code{threshold_profile_} 递增，切换阈值档位 \\
     \bottomrule
   \end{tabularx}
   \vspace{0.5em}
@@ -543,12 +543,12 @@
     \toprule
     变量 & 写入者 & 读取者与作用 \\
     \midrule
-    \code{g_latest_frame} & \code{Monitor_ProcessRx()} & OLED、报警、Flash 使用的最新合法数据 \\
-    \code{g_last_rx_ms} & \code{Monitor_ProcessRx()} & \code{Monitor_NodeLost()} 判断离线 \\
-    \code{g_page} & \code{Monitor_UpdateButtons()} & OLED 页面选择 \\
-    \code{g_threshold_profile} & \code{Monitor_UpdateButtons()} & 影响报警阈值与显示参数 \\
-    \code{g_mute_until_ms} & \code{Monitor_UpdateButtons()} & 控制蜂鸣器静音截止时间 \\
-    \code{g_flash_present} & \code{Flash_Init_Custom()} & 控制是否启用日志记录 \\
+    \code{latest_frame_} & \code{MonitorNode::processRx()} & OLED、报警、Flash 使用的最新合法数据 \\
+    \code{last_rx_ms_} & \code{MonitorNode::processRx()} & \code{MonitorNode::nodeLost()} 判断离线 \\
+    \code{page_} & \code{MonitorNode::updateButtons()} & OLED 页面选择 \\
+    \code{threshold_profile_} & \code{MonitorNode::updateButtons()} & 影响报警阈值与显示参数 \\
+    \code{g_mute_until_ms} & \code{MonitorNode::updateButtons()} & 控制蜂鸣器静音截止时间 \\
+    \code{flash_.present()} & \code{W25q64FlashLogger::init()} & 控制是否启用日志记录 \\
     \code{rx_buf/head/tail} & ISR / parser & USART3 接收环形缓冲区，负责中断与主循环之间的数据交接 \\
     \bottomrule
   \end{tabularx}
@@ -586,11 +586,11 @@
     \toprule
     异常 & 检测位置 & 处理方式 \\
     \midrule
-    DHT11 读取失败 & \code{DHT11_Read()} & 设置 \code{STATUS_DHT_ERROR}，继续发帧 \\
-    串口噪声或错位 & \code{Frame_Decode()} & 丢弃坏帧，重新寻找 \code{AA 55} \\
+    DHT11 读取失败 & \code{Dht11::read()} & 设置 \code{STATUS_DHT_ERROR}，继续发帧 \\
+    串口噪声或错位 & \code{FrameCodec::decode()} & 丢弃坏帧，重新寻找 \code{AA 55} \\
     接收缓冲满 & \code{USART3_IRQHandler()} & 丢弃最新字节，避免 ISR 阻塞 \\
-    板 A 离线 & \code{Monitor_NodeLost()} & OLED 显示 NODE LOST，蓝灯慢蜂鸣 \\
-    Flash 未接入 & \code{Flash_Init_Custom()} & \code{g_flash_present=0}，主功能不受影响 \\
+    板 A 离线 & \code{MonitorNode::nodeLost()} & OLED 显示 NODE LOST，蓝灯慢蜂鸣 \\
+    Flash 未接入 & \code{W25q64FlashLogger::init()} & \code{flash_.present()=0}，主功能不受影响 \\
     时钟初始化失败 & \code{SystemClock_Config()} & \code{Error_Handler()} 停机保护 \\
     \bottomrule
   \end{tabularx}
@@ -622,7 +622,7 @@
 
 \begin{frame}{演示流程 / Demonstration Flow}
   \begin{enumerate}
-    \item 烧录 \code{Fire_F103_sensor.hex} 到板 A，烧录 \code{Fire_F103_monitor.hex} 到板 B。
+    \item 烧录 \code{Env-Monitor_sensor.hex} 到板 A，烧录 \code{Env-Monitor_monitor.hex} 到板 B。
     \item 连接 USART3：A PB10 到 B PB11，B PB10 到 A PB11，并共地。
     \item 打开两个 USB 转串口，确认板 A \code{[SENSOR]} 日志和板 B \code{[MONITOR] rx v2} 日志。
     \item 展示 OLED 监测页和参数页，按 K1 切换页面。
@@ -685,7 +685,7 @@ cmake --build --preset MonitorDebug
     \begin{column}{0.46\textwidth}
       \begin{block}{工程改进}
         \begin{itemize}
-          \item 拆分 \code{main.c} 为 protocol、sensor、monitor 模块。
+          \item 拆分 \code{main.cpp} 与 \code{App/} 为 protocol、sensor、monitor 模块。
           \item 增加 CRC8/CRC16。
           \item 更完整的按键消抖。
           \item 增加单元测试或串口帧模拟器。

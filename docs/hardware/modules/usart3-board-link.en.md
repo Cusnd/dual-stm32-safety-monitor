@@ -36,7 +36,7 @@ Board A GND   ------- Board B GND
 
 ## Firmware Mapping
 
-- `Node_USART3_Init()` configures `115200 8N1`.
+- `hal::initNodeUsart3()` configures `115200 8N1`.
 - Board B uses an interrupt ring buffer and validates v2 frame length/checksum.
 
 ## Fault Symptoms

@@ -2,7 +2,7 @@
 /**
   ******************************************************************************
   * @file           : main.h
-  * @brief          : Header for main.c file.
+  * @brief          : Common board definitions for the C++ application entry.
   *                   This file contains the common defines of the application.
   ******************************************************************************
   * @attention

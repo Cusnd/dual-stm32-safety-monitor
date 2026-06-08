@@ -31,7 +31,7 @@ AO + 电位器 -> LM393 -> DO
 
 ## 固件映射
 
-- `ADC1_ReadChannel(4)` 采样 MQ135。
+- `hal::readAdc1Channel(4)` 采样 MQ135。
 - 阈值档位使用 ADC 原始计数。
 - JSON 字段：`mq135Raw`。
 

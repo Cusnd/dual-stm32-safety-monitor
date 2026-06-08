@@ -17,5 +17,6 @@ CMakeUserPresets.json
 *.obj
 *.d
 MDK-ARM/Fire_F103/
+MDK-ARM/Env-Monitor/
 *.bak
 *.tmp

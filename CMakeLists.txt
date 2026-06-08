@@ -11,6 +11,9 @@ cmake_minimum_required(VERSION 3.22)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS ON)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 
 # Define the build type
@@ -19,7 +22,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Set the project name
-set(CMAKE_PROJECT_NAME Fire_F103)
+set(CMAKE_PROJECT_NAME Env-Monitor)
 
 # APP_NODE_ROLE is the switch that turns the shared firmware into one of the
 # two boards used in the final project.  The presets select SENSOR or MONITOR,
@@ -33,18 +36,15 @@ set_property(CACHE APP_NODE_ROLE PROPERTY STRINGS SENSOR MONITOR)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
 # Core project settings
-project(${CMAKE_PROJECT_NAME})
+project(${CMAKE_PROJECT_NAME} LANGUAGES C CXX ASM)
 message("Build type: " ${CMAKE_BUILD_TYPE})
-
-# Enable CMake support for ASM and C languages
-enable_language(C ASM)
 
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME})
 
 # Add STM32CubeMX generated sources
 # This subdirectory contributes CubeMX startup, HAL, CMSIS, and Core/Src files.
-# The project-specific logic still lives in Core/Src/main.c.
+# The project-specific logic is split between Core/Src/main.cpp and App/.
 add_subdirectory(cmake/stm32cubemx)
 
 # Link directories setup
@@ -54,12 +54,20 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user sources here
+    App/Hal/Hardware.cpp
+    App/Protocol/FrameCodec.cpp
+    App/Drivers/BoardIo.cpp
+    App/Drivers/Dht11.cpp
+    App/Drivers/OledDisplay.cpp
+    App/Drivers/W25q64FlashLogger.cpp
+    App/Drivers/Ws2813Led.cpp
+    App/SensorNode.cpp
+    App/MonitorNode.cpp
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined include paths
+    ${CMAKE_SOURCE_DIR}
 )
 
 # Add project symbols (macros)
@@ -71,18 +79,19 @@ if(APP_NODE_ROLE STREQUAL "SENSOR")
     # Board A image: sensor acquisition node.
     # 板 A 镜像：传感器采集节点。
     target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE APP_NODE_ROLE=1)
-    set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME "Fire_F103_sensor")
+    set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME "Env-Monitor_sensor")
 elseif(APP_NODE_ROLE STREQUAL "MONITOR")
     # Board B image: OLED display, alarm, buttons, and optional flash logging.
     # 板 B 镜像：OLED 显示、报警、按键和可选 Flash 记录节点。
     target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE APP_NODE_ROLE=2)
-    set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME "Fire_F103_monitor")
+    set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME "Env-Monitor_monitor")
 else()
     message(FATAL_ERROR "APP_NODE_ROLE must be SENSOR or MONITOR")
 endif()
 
 # Remove wrong libob.a library dependency when using cpp files
 list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
+list(REMOVE_ITEM CMAKE_CXX_IMPLICIT_LINK_LIBRARIES ob)
 
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}

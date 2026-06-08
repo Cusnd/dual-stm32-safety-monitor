@@ -31,7 +31,7 @@ AO + potentiometer -> LM393 -> DO
 
 ## Firmware Mapping
 
-- `ADC1_ReadChannel(4)` samples MQ135.
+- `hal::readAdc1Channel(4)` samples MQ135.
 - Threshold profiles use raw ADC counts.
 - JSON field: `mq135Raw`.
 

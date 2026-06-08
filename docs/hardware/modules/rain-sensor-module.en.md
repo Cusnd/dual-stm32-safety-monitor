@@ -31,7 +31,7 @@ SIG + potentiometer -> optional LM393 DO
 
 ## Firmware Mapping
 
-- `ADC1_ReadChannel(6)` samples rain.
+- `hal::readAdc1Channel(6)` samples rain.
 - Default wet threshold starts at raw `1400`.
 - JSON fields: `rainRaw`, `rainWet`; status bit: `bit2`.
 

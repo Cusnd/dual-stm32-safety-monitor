@@ -33,7 +33,7 @@ GND -> GND
 ## 固件映射
 
 - `DHT11_PORT/PIN` = `GPIOB/PB12`。
-- `DHT11_Read()` 校验 40 bit 数据。
+- `Dht11::read()` 校验 40 bit 数据。
 - `status bit0` 表示读取失败。
 
 ## 测试与故障

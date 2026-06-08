@@ -75,21 +75,38 @@ http://localhost:5173
 - 趋势图保留最近 80 条有效传感器记录，包含 T/H/MQ2/MQ135/RAIN/热敏曲线；旧 v1 数据缺少的新曲线会自动跳过。
 - 若超过 3 秒没有收到有效 JSON，页面会显示“数据已超时”，但保留最后一次有效值。
 - “开始模拟”会按串口节奏逐行回放 `frontend/fixtures/sample-serial.log`，和真实 Web Serial 使用同一条解析链路。
-- “AI 洞察”区域基于最近数据给出风险等级、主要证据、趋势判断和建议动作；当前版本使用本地规则 provider，并纳入雨量湿态、热敏高温和热敏 ADC 异常。
-- “用户对话”区域会用当前传感器快照回答安全、报警原因、MQ2、雨量、热敏和排查类问题。
+- “AI 洞察”区域基于最近数据给出风险等级、主要证据、趋势判断和建议动作；默认显示 DeepSeek/本地规则混合 provider，本地规则会持续纳入雨量湿态、热敏高温和热敏 ADC 异常。
+- “用户对话”区域会把当前传感器快照和最近历史发给后端 `/api/ai/chat`；若后端不可用，会自动回落到本地规则回答安全、报警原因、MQ2、雨量、热敏和排查类问题。
 - 当前 Web Serial 主要支持 Chrome/Edge；其他浏览器会显示不支持提示。
 
-## AI 接入预留
+## AI 接入
 
-当前前端不会直接调用 DeepSeek，也不会保存 API key。后续接入 DeepSeek V4-flash 时，建议新增本地或云端后端代理，例如：
+前端不会直接调用 DeepSeek 官方接口，也不会保存 API key。DeepSeek key 应只放在本地或云端后端环境变量中，浏览器只调用后端代理：
 
 ```text
-frontend LocalInsightProvider / DeepSeekProvider
+frontend DeepSeekProvider
         -> POST /api/ai/chat
+        -> backend proxy with DEEPSEEK_API_KEY
         -> DeepSeek-compatible API
 ```
 
-前端已经预留 `AiProvider` 接口：`analyze(snapshot)` 和 `chat({ messages, snapshot, locale })`。正式接入时替换 provider 即可，传感器 JSON Lines 和页面布局不需要改。
+默认请求体包含 `model`、带系统提示的 `messages`、原始 `conversation`、压缩后的 `snapshot`、`locale` 和 `requestType: "chat"`。默认模型名是 `deepseek-v4-flash`，默认代理地址是 `/api/ai/chat`。
+
+可选配置方式：
+
+```html
+<script>
+  window.SAFETY_MONITOR_CONFIG = {
+    ai: {
+      mode: "deepseek",
+      endpoint: "/api/ai/chat",
+      model: "deepseek-v4-flash"
+    }
+  };
+</script>
+```
+
+也可以用 URL 参数临时覆盖：`?ai=local`、`?ai=deepseek`、`?aiEndpoint=/api/ai/chat`、`?aiModel=deepseek-v4-flash`。页面右上角的 AI 模式按钮会在 DeepSeek 和本地规则之间切换，并把选择保存在浏览器本地存储中。
 
 ## CLion/CMake 关系
 
@@ -103,4 +120,4 @@ cmake --preset SensorDebug
 cmake --build --preset SensorDebug
 ```
 
-烧录关系不变：`Fire_F103_sensor.hex` 烧到板 A，`Fire_F103_monitor.hex` 烧到板 B；这些名称只是仓库历史产物名。前端只读取板 B 的 USART1 调试口，不占用 USART3 板间通信。
+烧录关系不变：`Env-Monitor_sensor.hex` 烧到板 A，`Env-Monitor_monitor.hex` 烧到板 B；这些名称是当前固件产物名。前端只读取板 B 的 USART1 调试口，不占用 USART3 板间通信。

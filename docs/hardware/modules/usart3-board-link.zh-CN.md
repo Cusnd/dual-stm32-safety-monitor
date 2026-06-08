@@ -36,7 +36,7 @@
 
 ## 固件映射
 
-- `Node_USART3_Init()` 配置 `115200 8N1`。
+- `hal::initNodeUsart3()` 配置 `115200 8N1`。
 - 板 B 用中断环形缓冲，并校验 v2 帧长度和 checksum。
 
 ## 故障现象

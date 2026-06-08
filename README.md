@@ -91,10 +91,10 @@ cmake --build --preset MonitorDebug
 
 | Preset | Output | Burn to |
 |---|---|---|
-| `SensorDebug` | `build/SensorDebug/Fire_F103_sensor.hex` | Board A |
-| `MonitorDebug` | `build/MonitorDebug/Fire_F103_monitor.hex` | Board B |
+| `SensorDebug` | `build/SensorDebug/Env-Monitor_sensor.hex` | Board A |
+| `MonitorDebug` | `build/MonitorDebug/Env-Monitor_monitor.hex` | Board B |
 
-`Fire_F103.*` names are retained as legacy repository artifact names only; they are not a hardware-vendor requirement.
+`Env-Monitor.*` names are the current firmware artifact names; they are not a hardware-vendor requirement.
 
 ## Web Serial Dashboard
 

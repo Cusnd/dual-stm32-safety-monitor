@@ -36,10 +36,10 @@ C:\Users\liuso\Documents\GUC-EMB-Final
 
 | CLion / CMake Preset | 角色 | 生成文件 | 烧录到 |
 |---|---|---|---|
-| `SensorDebug` | 采集节点 | `build/SensorDebug/Fire_F103_sensor.hex` | 板 A |
-| `MonitorDebug` | 显示报警节点 | `build/MonitorDebug/Fire_F103_monitor.hex` | 板 B |
-| `Debug` | 默认显示节点 | `build/Debug/Fire_F103_monitor.hex` | 一般不用作双板演示 |
-| `Release` | 通用发布配置 | `build/Release/Fire_F103_monitor.hex` | 一般不用作双板演示 |
+| `SensorDebug` | 采集节点 | `build/SensorDebug/Env-Monitor_sensor.hex` | 板 A |
+| `MonitorDebug` | 显示报警节点 | `build/MonitorDebug/Env-Monitor_monitor.hex` | 板 B |
+| `Debug` | 默认显示节点 | `build/Debug/Env-Monitor_monitor.hex` | 一般不用作双板演示 |
+| `Release` | 通用发布配置 | `build/Release/Env-Monitor_monitor.hex` | 一般不用作双板演示 |
 
 推荐只用：
 
@@ -59,9 +59,9 @@ MonitorDebug
 3. 输出文件位于：
 
 ```text
-build/SensorDebug/Fire_F103_sensor.hex
-build/SensorDebug/Fire_F103_sensor.bin
-build/SensorDebug/Fire_F103_sensor.elf
+build/SensorDebug/Env-Monitor_sensor.hex
+build/SensorDebug/Env-Monitor_sensor.bin
+build/SensorDebug/Env-Monitor_sensor.elf
 ```
 
 构建板 B：
@@ -71,9 +71,9 @@ build/SensorDebug/Fire_F103_sensor.elf
 3. 输出文件位于：
 
 ```text
-build/MonitorDebug/Fire_F103_monitor.hex
-build/MonitorDebug/Fire_F103_monitor.bin
-build/MonitorDebug/Fire_F103_monitor.elf
+build/MonitorDebug/Env-Monitor_monitor.hex
+build/MonitorDebug/Env-Monitor_monitor.bin
+build/MonitorDebug/Env-Monitor_monitor.elf
 ```
 
 命令行等价操作是：
@@ -105,13 +105,15 @@ CLion 选择 preset 后，CMake 会传入：
 | `SensorDebug` | `APP_NODE_ROLE=SENSOR` | `APP_NODE_ROLE=1` |
 | `MonitorDebug` | `APP_NODE_ROLE=MONITOR` | `APP_NODE_ROLE=2` |
 
-`Core/Src/main.c` 根据这个宏选择运行哪个主循环：
+`Core/Src/main.cpp` 根据这个宏选择运行哪个 C++ 节点对象：
 
-```c
+```cpp
 #if APP_NODE_ROLE == APP_ROLE_SENSOR
-  Sensor_App_Run();
+  g_sensor_node.init();
+  g_sensor_node.run();
 #else
-  Monitor_App_Run();
+  g_monitor_node.init();
+  g_monitor_node.run();
 #endif
 ```
 
@@ -123,8 +125,8 @@ CLion 主要负责构建。烧录时使用构建产物：
 
 | 开发板 | 烧录文件 |
 |---|---|
-| 板 A SENSOR | `build/SensorDebug/Fire_F103_sensor.hex` |
-| 板 B MONITOR | `build/MonitorDebug/Fire_F103_monitor.hex` |
+| 板 A SENSOR | `build/SensorDebug/Env-Monitor_sensor.hex` |
+| 板 B MONITOR | `build/MonitorDebug/Env-Monitor_monitor.hex` |
 
 可用方式：
 
@@ -165,8 +167,8 @@ CLion 中可以直接使用共享运行配置：
 
 | CLion Run Configuration | 固件 |
 |---|---|
-| `STLINK OpenOCD Sensor` | `build/SensorDebug/Fire_F103_sensor.elf` |
-| `STLINK OpenOCD Monitor` | `build/MonitorDebug/Fire_F103_monitor.elf` |
+| `STLINK OpenOCD Sensor` | `build/SensorDebug/Env-Monitor_sensor.elf` |
+| `STLINK OpenOCD Monitor` | `build/MonitorDebug/Env-Monitor_monitor.elf` |
 
 如果 CLion 没自动识别共享配置，可手动新建 `OpenOCD Download & Run`，参数填：
 
@@ -175,8 +177,8 @@ Board config file: $PROJECT_DIR$/cmake/stlink-stm32f103c8.cfg
 GDB port: 3333
 Download: Always
 Reset: Halt
-Sensor executable: $PROJECT_DIR$/build/SensorDebug/Fire_F103_sensor.elf
-Monitor executable: $PROJECT_DIR$/build/MonitorDebug/Fire_F103_monitor.elf
+Sensor executable: $PROJECT_DIR$/build/SensorDebug/Env-Monitor_sensor.elf
+Monitor executable: $PROJECT_DIR$/build/MonitorDebug/Env-Monitor_monitor.elf
 ```
 
 烧录后串口调试参数为：
@@ -212,7 +214,7 @@ ST-LINK NRST -> NRST
 | CLion 配置 CMake 失败，提示找不到 `arm-none-eabi-gcc` | ARM GCC 不在 PATH | 在 CLion Toolchain 或系统 PATH 中加入 STM32CubeCLT/ARM GCC 路径 |
 | CLion 运行 `STLINK OpenOCD ...` 时提示 OpenOCD 位置未设置 | Embedded Development 中没有配置 OpenOCD | `Settings -> Build, Execution, Deployment -> Embedded Development` 设置 OpenOCD 路径 |
 | 生成的是显示节点，不是采集节点 | 选了 `Debug` 或 `MonitorDebug` | 板 A 必须选 `SensorDebug` |
-| 板 B 一直 `NODE LOST` | 板 A 没运行 SENSOR 固件，或 USART3 接线错误 | 确认板 A 烧 `Fire_F103_sensor.hex`，板 B 烧 `Fire_F103_monitor.hex` |
+| 板 B 一直 `NODE LOST` | 板 A 没运行 SENSOR 固件，或 USART3 接线错误 | 确认板 A 烧 `Env-Monitor_sensor.hex`，板 B 烧 `Env-Monitor_monitor.hex` |
 | OLED 不显示 | 只构建了固件但未烧录，或 OLED 接线/供电错误 | 确认烧录 Monitor 固件，并检查 `PB6/PB7/3V3/GND` |
 | 命令行手写 CMake 时工具链路径异常 | Windows 路径和反斜杠转义问题 | 优先用 CLion preset 或 `cmake --preset SensorDebug` |
 

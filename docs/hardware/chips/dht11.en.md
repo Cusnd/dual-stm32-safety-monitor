@@ -31,7 +31,7 @@ GND -> GND
 
 ## Firmware Mapping
 
-- `DHT11_Read()` drives the start pulse, switches the GPIO to input, reads 40 bits, and verifies checksum.
+- `Dht11::read()` drives the start pulse, switches the GPIO to input, reads 40 bits, and verifies checksum.
 - `DHT11_PERIOD_MS` controls the safe sampling interval.
 - Failure sets `status bit0`.
 

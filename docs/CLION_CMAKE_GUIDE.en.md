@@ -36,10 +36,10 @@ The project does not use two separate firmware projects for Board A and Board B.
 
 | CLion / CMake Preset | Role | Output | Flash To |
 |---|---|---|---|
-| `SensorDebug` | Acquisition node | `build/SensorDebug/Fire_F103_sensor.hex` | Board A |
-| `MonitorDebug` | Display/alarm node | `build/MonitorDebug/Fire_F103_monitor.hex` | Board B |
-| `Debug` | Default monitor image | `build/Debug/Fire_F103_monitor.hex` | Usually not used for the two-board demo |
-| `Release` | Generic release profile | `build/Release/Fire_F103_monitor.hex` | Usually not used for the two-board demo |
+| `SensorDebug` | Acquisition node | `build/SensorDebug/Env-Monitor_sensor.hex` | Board A |
+| `MonitorDebug` | Display/alarm node | `build/MonitorDebug/Env-Monitor_monitor.hex` | Board B |
+| `Debug` | Default monitor image | `build/Debug/Env-Monitor_monitor.hex` | Usually not used for the two-board demo |
+| `Release` | Generic release profile | `build/Release/Env-Monitor_monitor.hex` | Usually not used for the two-board demo |
 
 Recommended profiles:
 
@@ -59,9 +59,9 @@ Build Board A:
 3. Outputs:
 
 ```text
-build/SensorDebug/Fire_F103_sensor.hex
-build/SensorDebug/Fire_F103_sensor.bin
-build/SensorDebug/Fire_F103_sensor.elf
+build/SensorDebug/Env-Monitor_sensor.hex
+build/SensorDebug/Env-Monitor_sensor.bin
+build/SensorDebug/Env-Monitor_sensor.elf
 ```
 
 Build Board B:
@@ -71,9 +71,9 @@ Build Board B:
 3. Outputs:
 
 ```text
-build/MonitorDebug/Fire_F103_monitor.hex
-build/MonitorDebug/Fire_F103_monitor.bin
-build/MonitorDebug/Fire_F103_monitor.elf
+build/MonitorDebug/Env-Monitor_monitor.hex
+build/MonitorDebug/Env-Monitor_monitor.bin
+build/MonitorDebug/Env-Monitor_monitor.elf
 ```
 
 Command-line equivalent:
@@ -105,13 +105,15 @@ After CLion selects a preset, CMake passes:
 | `SensorDebug` | `APP_NODE_ROLE=SENSOR` | `APP_NODE_ROLE=1` |
 | `MonitorDebug` | `APP_NODE_ROLE=MONITOR` | `APP_NODE_ROLE=2` |
 
-`Core/Src/main.c` uses the macro to select the active main loop:
+`Core/Src/main.cpp` uses the macro to select the active C++ role object:
 
-```c
+```cpp
 #if APP_NODE_ROLE == APP_ROLE_SENSOR
-  Sensor_App_Run();
+  g_sensor_node.init();
+  g_sensor_node.run();
 #else
-  Monitor_App_Run();
+  g_monitor_node.init();
+  g_monitor_node.run();
 #endif
 ```
 
@@ -123,8 +125,8 @@ CLion builds the firmware. Flash the generated artifacts:
 
 | Board | Firmware |
 |---|---|
-| Board A SENSOR | `build/SensorDebug/Fire_F103_sensor.hex` |
-| Board B MONITOR | `build/MonitorDebug/Fire_F103_monitor.hex` |
+| Board A SENSOR | `build/SensorDebug/Env-Monitor_sensor.hex` |
+| Board B MONITOR | `build/MonitorDebug/Env-Monitor_monitor.hex` |
 
 Possible flashing paths:
 
@@ -165,8 +167,8 @@ CLion can use the shared run configurations directly:
 
 | CLion Run Configuration | Firmware |
 |---|---|
-| `STLINK OpenOCD Sensor` | `build/SensorDebug/Fire_F103_sensor.elf` |
-| `STLINK OpenOCD Monitor` | `build/MonitorDebug/Fire_F103_monitor.elf` |
+| `STLINK OpenOCD Sensor` | `build/SensorDebug/Env-Monitor_sensor.elf` |
+| `STLINK OpenOCD Monitor` | `build/MonitorDebug/Env-Monitor_monitor.elf` |
 
 If CLion does not pick up the shared configurations, create an `OpenOCD Download & Run` configuration manually:
 
@@ -175,8 +177,8 @@ Board config file: $PROJECT_DIR$/cmake/stlink-stm32f103c8.cfg
 GDB port: 3333
 Download: Always
 Reset: Halt
-Sensor executable: $PROJECT_DIR$/build/SensorDebug/Fire_F103_sensor.elf
-Monitor executable: $PROJECT_DIR$/build/MonitorDebug/Fire_F103_monitor.elf
+Sensor executable: $PROJECT_DIR$/build/SensorDebug/Env-Monitor_sensor.elf
+Monitor executable: $PROJECT_DIR$/build/MonitorDebug/Env-Monitor_monitor.elf
 ```
 
 Serial debug settings:
@@ -212,7 +214,7 @@ ST-LINK NRST -> NRST
 | CLion CMake configure fails and cannot find `arm-none-eabi-gcc` | ARM GCC is not on PATH | Add STM32CubeCLT/ARM GCC to the CLion toolchain or system PATH |
 | CLion says the OpenOCD location is not set when running `STLINK OpenOCD ...` | Embedded Development has no OpenOCD path | Configure OpenOCD under `Settings -> Build, Execution, Deployment -> Embedded Development` |
 | The generated image behaves as the monitor, not the sensor | `Debug` or `MonitorDebug` was selected | Board A must use `SensorDebug` |
-| Board B stays in `NODE LOST` | Board A is not running SENSOR firmware, or USART3 wiring is wrong | Flash Board A with `Fire_F103_sensor.hex`, Board B with `Fire_F103_monitor.hex` |
+| Board B stays in `NODE LOST` | Board A is not running SENSOR firmware, or USART3 wiring is wrong | Flash Board A with `Env-Monitor_sensor.hex`, Board B with `Env-Monitor_monitor.hex` |
 | OLED stays blank | Firmware was built but not flashed, or OLED wiring/power is wrong | Flash the monitor firmware and check `PB6/PB7/3V3/GND` |
 | Manually typed CMake command has a toolchain path issue | Windows path quoting/backslash issue | Prefer CLion presets or `cmake --preset SensorDebug` |
 
