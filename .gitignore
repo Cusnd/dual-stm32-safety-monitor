@@ -3,6 +3,8 @@ build/
 cmake-build-*/
 slides/
 tmp/
+frontend/node_modules/
+frontend/dist/
 .idea/*
 !.idea/runConfigurations/
 !.idea/runConfigurations/*.xml

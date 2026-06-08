@@ -34,7 +34,7 @@ AO -> optional comparator threshold -> DO
 ## Firmware Mapping
 
 - Reference AO connects to Board A `PA5 / ADC1_CH5`.
-- `Monitor_Danger()` uses MQ2 danger threshold before warning logic.
+- `evaluateAlarm()` checks the active MQ2 danger threshold before warning logic.
 - Values are raw ADC counts, not gas concentration.
 
 ## Debugging

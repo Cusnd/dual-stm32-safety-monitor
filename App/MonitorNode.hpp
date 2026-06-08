@@ -4,8 +4,9 @@
 #include "App/Drivers/BoardIo.hpp"
 #include "App/Drivers/OledDisplay.hpp"
 #include "App/Drivers/W25q64FlashLogger.hpp"
-#include "App/Drivers/Ws2813Led.hpp"
+#include "App/Monitor/AlarmEvaluator.hpp"
 #include "App/Protocol/FrameCodec.hpp"
+#include "App/Protocol/FrameStreamDecoder.hpp"
 #include "App/Protocol/SensorFrame.hpp"
 
 #include <stdint.h>
@@ -19,27 +20,18 @@ public:
   void run();
 
 private:
-  void processRx();
-  void updateButtons();
-  void updateAlarm();
-  void updateDisplay();
-  bool linkWaiting() const;
-  bool nodeLost() const;
-  bool danger() const;
-  bool warn() const;
-  bool muted() const;
-  const char *alarmStateString() const;
-  void printFrontendJson(const SensorFrame &frame) const;
+  void processRx(uint32_t now);
+  void updateButtons(uint32_t now);
+  void updateAlarm(const AlarmEvaluation &alarm, uint32_t now);
+  void updateDisplay(const AlarmEvaluation &alarm);
+  void printFrontendJson(const SensorFrame &frame, const AlarmEvaluation &alarm) const;
 
   OledDisplay oled_;
   W25q64FlashLogger flash_;
-  Ws2813Led external_rgb_;
-  BoardRgb led_;
   Buzzer buzzer_;
   Buttons buttons_;
+  FrameStreamDecoder decoder_;
   SensorFrame latest_frame_;
-  uint8_t rx_buf_[FrameCodec::total_len];
-  uint8_t rx_pos_;
   uint32_t last_rx_ms_;
   uint8_t have_rx_;
   uint8_t page_;

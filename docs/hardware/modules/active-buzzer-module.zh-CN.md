@@ -30,9 +30,9 @@ GND -> GND
 
 ## 固件映射
 
-- `Buzzer_Set()` 驱动 `PB8`。
-- `Monitor_UpdateAlarm()` 选择蜂鸣节奏。
-- K2 短按只静音蜂鸣器，LED 仍显示报警状态。
+- `Buzzer::set()` 驱动 `PB8`。
+- `MonitorNode::updateAlarm()` 选择蜂鸣节奏。
+- K2 短按只静音蜂鸣器，OLED、JSON 和 Flash 记录仍显示真实报警状态。
 
 ## 测试要点
 

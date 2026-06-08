@@ -4,12 +4,6 @@
 
 namespace app {
 
-class BoardRgb
-{
-public:
-  void set(uint8_t red, uint8_t green, uint8_t blue);
-};
-
 class Buzzer
 {
 public:

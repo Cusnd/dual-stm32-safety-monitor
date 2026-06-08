@@ -54,6 +54,17 @@ void W25q64FlashLogger::init()
   log_addr_ = log_start_addr;
   record_count_ = 0u;
   meta_addr_ = 0u;
+  task_ = Task::None;
+  task_start_ms_ = 0u;
+  task_timeout_ms_ = 0u;
+  pending_log_addr_ = log_start_addr;
+  pending_log_ = 0u;
+  pending_log_needs_erase_ = 0u;
+  pending_metadata_ = 0u;
+  active_log_addr_ = 0u;
+  active_log_count_ = 0u;
+  active_log_seq_ = 0u;
+  active_log_state_ = 0u;
 
   if (present_ != 0u)
   {
@@ -62,7 +73,7 @@ void W25q64FlashLogger::init()
       log_addr_ = log_start_addr;
       record_count_ = 0u;
       meta_addr_ = sector_size;
-      writeMetadata();
+      scheduleMetadata();
     }
 
     printf("[MONITOR] W25Q ID %02X %02X %02X, cursor=0x%06lX records=%lu\r\n",
@@ -72,20 +83,19 @@ void W25q64FlashLogger::init()
   }
 }
 
-void W25q64FlashLogger::logFrame(
+bool W25q64FlashLogger::logFrame(
   const SensorFrame &frame,
   AlarmState state,
   uint8_t threshold_profile,
   bool muted)
 {
-  uint8_t record[log_record_size];
   const uint32_t tick = HAL_GetTick();
   const uint16_t crc_len = static_cast<uint16_t>(log_record_size - 2u);
   uint16_t crc;
 
-  if (present_ == 0u)
+  if ((present_ == 0u) || (pending_log_ != 0u))
   {
-    return;
+    return false;
   }
 
   if ((log_addr_ < log_start_addr) ||
@@ -95,63 +105,111 @@ void W25q64FlashLogger::logFrame(
     log_addr_ = log_start_addr;
   }
 
-  if (((log_addr_ - log_start_addr) % sector_size) == 0u)
+  memset(pending_record_, 0xFF, sizeof(pending_record_));
+  pending_record_[0] = record_magic;
+  pending_record_[1] = FrameCodec::version;
+  pending_record_[2] = frame.seq;
+  pending_record_[3] = frame.status;
+  pending_record_[4] = frame.temp;
+  pending_record_[5] = frame.humi;
+  pending_record_[6] = static_cast<uint8_t>(frame.mq135_adc >> 8);
+  pending_record_[7] = static_cast<uint8_t>(frame.mq135_adc);
+  pending_record_[8] = static_cast<uint8_t>(frame.mq2_adc >> 8);
+  pending_record_[9] = static_cast<uint8_t>(frame.mq2_adc);
+  pending_record_[10] = static_cast<uint8_t>(frame.rain_adc >> 8);
+  pending_record_[11] = static_cast<uint8_t>(frame.rain_adc);
+  pending_record_[12] = static_cast<uint8_t>(frame.therm_adc >> 8);
+  pending_record_[13] = static_cast<uint8_t>(frame.therm_adc);
+  pending_record_[14] = static_cast<uint8_t>(static_cast<uint16_t>(frame.therm_c10) >> 8);
+  pending_record_[15] = static_cast<uint8_t>(static_cast<uint16_t>(frame.therm_c10));
+  pending_record_[16] = frame.flame;
+  pending_record_[17] = frame.rain_wet;
+  pending_record_[18] = frame.therm_hot;
+  pending_record_[19] = static_cast<uint8_t>(state);
+  pending_record_[20] = static_cast<uint8_t>(tick >> 24);
+  pending_record_[21] = static_cast<uint8_t>(tick >> 16);
+  pending_record_[22] = static_cast<uint8_t>(tick >> 8);
+  pending_record_[23] = static_cast<uint8_t>(tick);
+  pending_record_[24] = threshold_profile;
+  pending_record_[25] = muted ? 1u : 0u;
+  u32ToBytes(&pending_record_[26], record_count_);
+
+  crc = crc16(pending_record_, static_cast<uint8_t>(crc_len));
+  pending_record_[30] = static_cast<uint8_t>(crc >> 8);
+  pending_record_[31] = static_cast<uint8_t>(crc);
+
+  pending_log_addr_ = log_addr_;
+  pending_log_needs_erase_ = (((log_addr_ - log_start_addr) % sector_size) == 0u) ? 1u : 0u;
+  pending_log_ = 1u;
+  return true;
+}
+
+void W25q64FlashLogger::process()
+{
+  if (present_ == 0u)
   {
-    sectorErase(log_addr_);
+    return;
   }
 
-  memset(record, 0xFF, sizeof(record));
-  record[0] = record_magic;
-  record[1] = FrameCodec::version;
-  record[2] = frame.seq;
-  record[3] = frame.status;
-  record[4] = frame.temp;
-  record[5] = frame.humi;
-  record[6] = static_cast<uint8_t>(frame.mq135_adc >> 8);
-  record[7] = static_cast<uint8_t>(frame.mq135_adc);
-  record[8] = static_cast<uint8_t>(frame.mq2_adc >> 8);
-  record[9] = static_cast<uint8_t>(frame.mq2_adc);
-  record[10] = static_cast<uint8_t>(frame.rain_adc >> 8);
-  record[11] = static_cast<uint8_t>(frame.rain_adc);
-  record[12] = static_cast<uint8_t>(frame.therm_adc >> 8);
-  record[13] = static_cast<uint8_t>(frame.therm_adc);
-  record[14] = static_cast<uint8_t>(static_cast<uint16_t>(frame.therm_c10) >> 8);
-  record[15] = static_cast<uint8_t>(static_cast<uint16_t>(frame.therm_c10));
-  record[16] = frame.flame;
-  record[17] = frame.rain_wet;
-  record[18] = frame.therm_hot;
-  record[19] = static_cast<uint8_t>(state);
-  record[20] = static_cast<uint8_t>(tick >> 24);
-  record[21] = static_cast<uint8_t>(tick >> 16);
-  record[22] = static_cast<uint8_t>(tick >> 8);
-  record[23] = static_cast<uint8_t>(tick);
-  record[24] = threshold_profile;
-  record[25] = muted ? 1u : 0u;
-  u32ToBytes(&record[26], record_count_);
-
-  crc = crc16(record, static_cast<uint8_t>(crc_len));
-  record[30] = static_cast<uint8_t>(crc >> 8);
-  record[31] = static_cast<uint8_t>(crc);
-
-  pageProgram(log_addr_, record, static_cast<uint8_t>(sizeof(record)));
-  printf("[MONITOR] flash log addr=0x%06lX count=%lu seq=%u state=%u\r\n",
-         static_cast<unsigned long>(log_addr_),
-         static_cast<unsigned long>(record_count_),
-         frame.seq,
-         static_cast<unsigned int>(state));
-
-  log_addr_ += log_record_size;
-  record_count_++;
-  if (log_addr_ >= log_end_addr)
+  if (task_ != Task::None)
   {
-    log_addr_ = log_start_addr;
+    if (flashBusy())
+    {
+      if (static_cast<uint32_t>(HAL_GetTick() - task_start_ms_) > task_timeout_ms_)
+      {
+        failTask();
+      }
+      return;
+    }
+
+    completeTask();
   }
-  writeMetadata();
+
+  if (task_ != Task::None)
+  {
+    return;
+  }
+
+  if (pending_log_ != 0u)
+  {
+    if (pending_log_needs_erase_ != 0u)
+    {
+      startSectorErase(pending_log_addr_, Task::EraseLogSector, 1000u);
+      return;
+    }
+
+    active_log_addr_ = pending_log_addr_;
+    active_log_count_ = bytesToU32(&pending_record_[26]);
+    active_log_seq_ = pending_record_[2];
+    active_log_state_ = pending_record_[19];
+    startPageProgram(pending_log_addr_, pending_record_,
+                     static_cast<uint8_t>(sizeof(pending_record_)),
+                     Task::ProgramLogRecord, 10u);
+    return;
+  }
+
+  if (pending_metadata_ != 0u)
+  {
+    if (meta_addr_ + meta_entry_size > sector_size)
+    {
+      startSectorErase(0u, Task::EraseMetadataSector, 1000u);
+      return;
+    }
+
+    startPageProgram(meta_addr_, metadata_record_,
+                     static_cast<uint8_t>(sizeof(metadata_record_)),
+                     Task::ProgramMetadata, 10u);
+  }
 }
 
 bool W25q64FlashLogger::present() const
 {
   return present_ != 0u;
+}
+
+bool W25q64FlashLogger::busy() const
+{
+  return (task_ != Task::None) || (pending_log_ != 0u) || (pending_metadata_ != 0u);
 }
 
 uint32_t W25q64FlashLogger::recordCount() const
@@ -186,17 +244,9 @@ uint8_t W25q64FlashLogger::readStatus()
   return status;
 }
 
-bool W25q64FlashLogger::waitReady(uint32_t timeout_ms)
+bool W25q64FlashLogger::flashBusy()
 {
-  const uint32_t start = HAL_GetTick();
-  while ((readStatus() & 0x01u) != 0u)
-  {
-    if (static_cast<uint32_t>(HAL_GetTick() - start) > timeout_ms)
-    {
-      return false;
-    }
-  }
-  return true;
+  return (readStatus() & 0x01u) != 0u;
 }
 
 void W25q64FlashLogger::writeEnable()
@@ -206,7 +256,7 @@ void W25q64FlashLogger::writeEnable()
   cs(true);
 }
 
-void W25q64FlashLogger::sectorErase(uint32_t addr)
+void W25q64FlashLogger::startSectorErase(uint32_t addr, Task task, uint32_t timeout_ms)
 {
   writeEnable();
   cs(false);
@@ -215,10 +265,18 @@ void W25q64FlashLogger::sectorErase(uint32_t addr)
   txRx(static_cast<uint8_t>(addr >> 8));
   txRx(static_cast<uint8_t>(addr));
   cs(true);
-  (void)waitReady(1000u);
+
+  task_ = task;
+  task_start_ms_ = HAL_GetTick();
+  task_timeout_ms_ = timeout_ms;
 }
 
-void W25q64FlashLogger::pageProgram(uint32_t addr, const uint8_t *data, uint8_t len)
+void W25q64FlashLogger::startPageProgram(
+  uint32_t addr,
+  const uint8_t *data,
+  uint8_t len,
+  Task task,
+  uint32_t timeout_ms)
 {
   writeEnable();
   cs(false);
@@ -231,7 +289,61 @@ void W25q64FlashLogger::pageProgram(uint32_t addr, const uint8_t *data, uint8_t 
     txRx(data[i]);
   }
   cs(true);
-  (void)waitReady(10u);
+
+  task_ = task;
+  task_start_ms_ = HAL_GetTick();
+  task_timeout_ms_ = timeout_ms;
+}
+
+void W25q64FlashLogger::completeTask()
+{
+  const Task completed = task_;
+  task_ = Task::None;
+
+  switch (completed)
+  {
+    case Task::EraseLogSector:
+      pending_log_needs_erase_ = 0u;
+      break;
+
+    case Task::ProgramLogRecord:
+      printf("[MONITOR] flash log addr=0x%06lX count=%lu seq=%u state=%u\r\n",
+             static_cast<unsigned long>(active_log_addr_),
+             static_cast<unsigned long>(active_log_count_),
+             active_log_seq_,
+             static_cast<unsigned int>(active_log_state_));
+      pending_log_ = 0u;
+      log_addr_ = pending_log_addr_ + log_record_size;
+      record_count_++;
+      if (log_addr_ >= log_end_addr)
+      {
+        log_addr_ = log_start_addr;
+      }
+      scheduleMetadata();
+      break;
+
+    case Task::EraseMetadataSector:
+      meta_addr_ = 0u;
+      break;
+
+    case Task::ProgramMetadata:
+      pending_metadata_ = 0u;
+      meta_addr_ += meta_entry_size;
+      break;
+
+    case Task::None:
+    default:
+      break;
+  }
+}
+
+void W25q64FlashLogger::failTask()
+{
+  task_ = Task::None;
+  pending_log_ = 0u;
+  pending_metadata_ = 0u;
+  present_ = 0u;
+  printf("[MONITOR] flash timeout, logging disabled\r\n");
 }
 
 void W25q64FlashLogger::readData(uint32_t addr, uint8_t *data, uint16_t len)
@@ -337,30 +449,21 @@ bool W25q64FlashLogger::loadMetadata()
   return found;
 }
 
-void W25q64FlashLogger::writeMetadata()
+void W25q64FlashLogger::scheduleMetadata()
 {
-  uint8_t entry[meta_entry_size];
   uint16_t crc;
 
-  if (meta_addr_ + meta_entry_size > sector_size)
-  {
-    sectorErase(0u);
-    meta_addr_ = 0u;
-  }
-
-  memset(entry, 0xFF, sizeof(entry));
-  entry[0] = meta_magic0;
-  entry[1] = meta_magic1;
-  entry[2] = FrameCodec::version;
-  entry[3] = 0u;
-  u32ToBytes(&entry[4], log_addr_);
-  u32ToBytes(&entry[8], record_count_);
-  crc = crc16(entry, 12u);
-  entry[12] = static_cast<uint8_t>(crc >> 8);
-  entry[13] = static_cast<uint8_t>(crc);
-
-  pageProgram(meta_addr_, entry, static_cast<uint8_t>(sizeof(entry)));
-  meta_addr_ += meta_entry_size;
+  memset(metadata_record_, 0xFF, sizeof(metadata_record_));
+  metadata_record_[0] = meta_magic0;
+  metadata_record_[1] = meta_magic1;
+  metadata_record_[2] = FrameCodec::version;
+  metadata_record_[3] = 0u;
+  u32ToBytes(&metadata_record_[4], log_addr_);
+  u32ToBytes(&metadata_record_[8], record_count_);
+  crc = crc16(metadata_record_, 12u);
+  metadata_record_[12] = static_cast<uint8_t>(crc >> 8);
+  metadata_record_[13] = static_cast<uint8_t>(crc);
+  pending_metadata_ = 1u;
 }
 
 }  // namespace app

@@ -16,7 +16,7 @@
 | LM393 比较器 | [chips/lm393.zh-CN.md](chips/lm393.zh-CN.md) |
 | SSD1306 OLED 控制器 | [chips/ssd1306.zh-CN.md](chips/ssd1306.zh-CN.md) |
 | W25Q64 SPI NOR Flash | [chips/w25q64.zh-CN.md](chips/w25q64.zh-CN.md) |
-| WS2813E 可寻址 RGB LED | [chips/ws2813e.zh-CN.md](chips/ws2813e.zh-CN.md) |
+| WS2813E 可寻址 RGB LED（legacy/reference） | [chips/ws2813e.zh-CN.md](chips/ws2813e.zh-CN.md) |
 | 10K NTC B3950 热敏电阻 | [chips/10k-ntc-b3950.zh-CN.md](chips/10k-ntc-b3950.zh-CN.md) |
 
 ## 模块资料
@@ -32,7 +32,7 @@
 | SSD1306 OLED 模块 | [modules/oled-ssd1306-module.zh-CN.md](modules/oled-ssd1306-module.zh-CN.md) |
 | 有源蜂鸣器模块 | [modules/active-buzzer-module.zh-CN.md](modules/active-buzzer-module.zh-CN.md) |
 | W25Q64 模块 | [modules/w25q64-module.zh-CN.md](modules/w25q64-module.zh-CN.md) |
-| WS2813E RGB 模块 | [modules/ws2813e-rgb-module.zh-CN.md](modules/ws2813e-rgb-module.zh-CN.md) |
+| WS2813E RGB 模块（legacy/reference） | [modules/ws2813e-rgb-module.zh-CN.md](modules/ws2813e-rgb-module.zh-CN.md) |
 | USART3 双板链路 | [modules/usart3-board-link.zh-CN.md](modules/usart3-board-link.zh-CN.md) |
 
 ## 通用板卡移植检查表

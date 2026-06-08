@@ -788,7 +788,7 @@
         </div>
         <div class="hero-stats" aria-label="关键指标">
           <div class="stat"><strong>2</strong><span>STM32F103C8T6 双 MCU 协作</span></div>
-          <div class="stat"><strong>4</strong><span>DHT11、MQ135、MQ2、火焰采集</span></div>
+          <div class="stat"><strong>6</strong><span>DHT11、MQ135、MQ2、雨量、热敏、火焰采集</span></div>
           <div class="stat"><strong>13B</strong><span>固定帧长，便于串口调试</span></div>
           <div class="stat"><strong>72MHz</strong><span>HSE 倍频系统时钟</span></div>
         </div>
@@ -819,9 +819,9 @@
               <h3>Board B / MONITOR</h3>
               <ul>
                 <li><span>OLED</span><code>PB6/PB7</code></li>
-                <li><span>RGB LED</span><code>PA1/2/3</code></li>
                 <li><span>Buzzer</span><code>PB8</code></li>
                 <li><span>K1 / K2</span><code>PA0/PC13</code></li>
+                <li><span>W25Q64</span><code>SPI2</code></li>
               </ul>
             </div>
           </div>
@@ -866,17 +866,17 @@
         <article class="card">
           <div class="icon">A</div>
           <h3>采集节点专注输入</h3>
-          <p>SENSOR 周期读取 DHT11、MQ135、MQ2 和火焰模块，将数据滤波后封装成固定帧发送。</p>
+          <p>SENSOR 周期读取 DHT11、MQ135、MQ2、雨量、热敏和火焰模块，将数据滤波后封装成协议 v2 固定帧发送。</p>
         </article>
         <article class="card">
           <div class="icon">B</div>
           <h3>监控节点专注输出</h3>
-          <p>MONITOR 解析串口帧，刷新 OLED，驱动 RGB 与蜂鸣器，并处理 K1/K2 页面和静音操作。</p>
+          <p>MONITOR 流式解析串口帧，刷新 OLED，驱动蜂鸣器，并处理 K1/K2 页面、静音和阈值档位操作。</p>
         </article>
         <article class="card">
           <div class="icon">C</div>
           <h3>异常状态可观察</h3>
-          <p>通信超时会进入 NODE LOST，传感器异常和危险条件会映射到不同灯色与蜂鸣节奏。</p>
+          <p>通信超时会进入 NODE LOST，传感器异常和危险条件会映射到 OLED 状态、JSON 风险和蜂鸣节奏。</p>
         </article>
       </div>
     </section>
@@ -901,9 +901,9 @@
         <div class="timeline">
           <article class="step"><div><h3>采样</h3><p>读取温湿度、空气质量、烟雾和火焰状态。</p></div></article>
           <article class="step"><div><h3>预处理</h3><p>ADC 值做指数滑动平均，DHT11 错误写入状态位。</p></div></article>
-          <article class="step"><div><h3>编码</h3><p>使用 13 字节固定帧承载数据、序号和 checksum。</p></div></article>
-          <article class="step"><div><h3>解析</h3><p>MONITOR 寻找帧头，校验长度和累加和。</p></div></article>
-          <article class="step"><div><h3>输出</h3><p>OLED、RGB、蜂鸣器和可选 Flash 记录同步更新。</p></div></article>
+          <article class="step"><div><h3>编码</h3><p>使用 22 字节协议 v2 固定帧承载雨量、热敏、状态位、序号和 checksum。</p></div></article>
+          <article class="step"><div><h3>解析</h3><p>MONITOR 使用流式解码器寻找帧头，校验长度、版本和累加和。</p></div></article>
+          <article class="step"><div><h3>输出</h3><p>OLED、蜂鸣器、JSON Lines 和可选 Flash 记录同步更新。</p></div></article>
         </div>
       </div>
     </section>
@@ -920,7 +920,6 @@
         <div class="matrix-row"><strong>SENSOR</strong><span>MQ2 烟雾/可燃气体趋势，严重超标进入危险状态。</span><span class="chip">PA5 / ADC1_CH5</span></div>
         <div class="matrix-row"><strong>SENSOR</strong><span>火焰 DO 数字输入，低电平触发，报警优先级最高。</span><span class="chip">PB13</span></div>
         <div class="matrix-row"><strong>MONITOR</strong><span>SSD1306 OLED，软件 I2C，显示实时值、状态和阈值档位。</span><span class="chip">PB6 / PB7</span></div>
-        <div class="matrix-row"><strong>MONITOR</strong><span>RGB 状态灯，区分正常、预警、危险和节点丢失。</span><span class="chip">PA1 / PA2 / PA3</span></div>
         <div class="matrix-row"><strong>MONITOR</strong><span>有源蜂鸣器，危险快响，节点丢失慢响，支持按键静音。</span><span class="chip">PB8</span></div>
         <div class="matrix-row"><strong>OPTIONAL</strong><span>W25Q64 SPI Flash，存在时启用历史记录。</span><span class="chip">SPI2</span></div>
       </div>
@@ -929,21 +928,24 @@
     <section id="protocol">
       <div class="section-head">
         <p class="kicker">Frame Protocol</p>
-        <h2>13 字节轻量通信协议</h2>
+        <h2>22 字节协议 v2 通信帧</h2>
         <p>固定帧长让接收端实现简单，帧头可重同步，序号便于观察刷新，checksum 能过滤明显坏帧。</p>
       </div>
       <div class="card protocol">
-        <div class="frame" aria-label="13 字节帧结构">
+        <div class="frame" aria-label="协议 v2 帧字段">
           <div class="byte hot">AA</div>
           <div class="byte hot">55</div>
           <div class="byte">LEN</div>
+          <div class="byte">VER</div>
           <div class="byte">TEMP</div>
           <div class="byte">HUMI</div>
-          <div class="byte">MQ135_H</div>
-          <div class="byte">MQ135_L</div>
-          <div class="byte">MQ2_H</div>
-          <div class="byte">MQ2_L</div>
+          <div class="byte">MQ135</div>
+          <div class="byte">MQ2</div>
+          <div class="byte">RAIN</div>
+          <div class="byte">THERM</div>
+          <div class="byte">T_C10</div>
           <div class="byte">FLAME</div>
+          <div class="byte">FLAGS</div>
           <div class="byte">SEQ</div>
           <div class="byte">STATUS</div>
           <div class="byte hot">SUM</div>
@@ -961,10 +963,10 @@
         <p>系统把输出状态做成清楚的四档，方便现场演示，也方便调试时快速定位问题。</p>
       </div>
       <div class="status-grid">
-        <article class="card status"><h3>正常</h3><p>通信在线且无警告、无危险。RGB 绿灯，蜂鸣器关闭。</p></article>
-        <article class="card status warn"><h3>预警</h3><p>空气质量或烟雾达到预警阈值，或 DHT11 读取异常。RGB 黄灯。</p></article>
-        <article class="card status danger"><h3>危险</h3><p>检测到火焰，或 MQ2 烟雾严重超标。RGB 红灯，蜂鸣器快速鸣响。</p></article>
-        <article class="card status lost"><h3>节点丢失</h3><p>超过 3 秒没有有效采集帧。RGB 蓝灯，蜂鸣器慢速提示。</p></article>
+        <article class="card status"><h3>正常</h3><p>通信在线且无警告、无危险。OLED 显示 NORMAL，蜂鸣器关闭。</p></article>
+        <article class="card status warn"><h3>预警</h3><p>空气质量、烟雾、雨量、热敏或 DHT11 状态触发预警条件，蜂鸣器保持关闭。</p></article>
+        <article class="card status danger"><h3>危险</h3><p>检测到火焰、MQ2 严重超标或热敏高温，蜂鸣器快速鸣响。</p></article>
+        <article class="card status lost"><h3>节点丢失</h3><p>超过超时时间没有有效采集帧。OLED 显示 NODE LOST，蜂鸣器慢速提示。</p></article>
       </div>
     </section>
 
@@ -977,8 +979,8 @@
       <div class="timeline">
         <article class="step"><div><h3>烧录两个固件</h3><p><code>SensorDebug</code> 输出烧录到板 A，<code>MonitorDebug</code> 输出烧录到板 B。</p></div></article>
         <article class="step"><div><h3>确认串口日志</h3><p>两个 CH340C 调试口均使用 <code>115200 8N1</code>，分别观察 SENSOR 和 MONITOR 日志。</p></div></article>
-        <article class="step"><div><h3>观察 OLED 与灯光</h3><p>确认 OLED 显示传感器值，K1 切换页面，K2 短按静音、长按切换阈值档位。</p></div></article>
-        <article class="step"><div><h3>触发风险状态</h3><p>用安全、可控的方式改变 MQ 或火焰模块输入，观察黄灯、红灯和蜂鸣器节奏。</p></div></article>
+        <article class="step"><div><h3>观察 OLED 与看板</h3><p>确认 OLED 显示传感器值，Web Serial 看板显示 JSON schema v2 数据，K1 切换页面，K2 短按静音、长按切换阈值档位。</p></div></article>
+        <article class="step"><div><h3>触发风险状态</h3><p>用安全、可控的方式改变 MQ、雨量、热敏或火焰模块输入，观察 OLED、看板风险和蜂鸣器节奏。</p></div></article>
         <article class="step"><div><h3>验证异常恢复</h3><p>断开板间通信后应进入 NODE LOST，恢复通信后回到实时接收。</p></div></article>
       </div>
     </section>

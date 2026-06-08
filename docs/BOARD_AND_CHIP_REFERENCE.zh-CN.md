@@ -14,8 +14,8 @@
 | 双板链路 | USART3 `PB10/PB11` | TX/RX 交叉并共地 |
 | 模拟输入 | `PA4/PA5/PA6/PA7` | 输入电压必须在 0..VDDA |
 | 显示 | SSD1306，软件 I2C `PB6/PB7` | I2C 地址和上拉取决于模块 |
-| 外置日志 | W25Q64，SPI2 | 只能 3.3 V 供电 |
-| 外置 RGB | MONITOR 固件使用 `PA6/TIM3_CH1` 驱动 WS2813E | 灯珠 5 V 供电，共地，建议电平转换 |
+| 可选日志 | W25Q64，SPI2 | 只能 3.3 V 供电；不接时 MONITOR 仍可工作 |
+| legacy 扩展 | 保留 WS2813E 硬件资料 | 当前 CMake 构建不编译 WS2813 驱动 |
 
 ## 芯片文档
 
@@ -29,7 +29,7 @@
 | LM393 比较器 | [hardware/chips/lm393.zh-CN.md](hardware/chips/lm393.zh-CN.md) |
 | SSD1306 OLED 控制器 | [hardware/chips/ssd1306.zh-CN.md](hardware/chips/ssd1306.zh-CN.md) |
 | W25Q64 SPI NOR Flash | [hardware/chips/w25q64.zh-CN.md](hardware/chips/w25q64.zh-CN.md) |
-| WS2813E RGB LED | [hardware/chips/ws2813e.zh-CN.md](hardware/chips/ws2813e.zh-CN.md) |
+| WS2813E RGB LED（legacy/reference） | [hardware/chips/ws2813e.zh-CN.md](hardware/chips/ws2813e.zh-CN.md) |
 | 10K NTC B3950 | [hardware/chips/10k-ntc-b3950.zh-CN.md](hardware/chips/10k-ntc-b3950.zh-CN.md) |
 
 ## 项目产物命名

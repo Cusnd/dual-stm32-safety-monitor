@@ -1,6 +1,6 @@
 # CLion + CMake Guide
 
-[English README](../README.md) | [中文](CLION_CMAKE_GUIDE.zh-CN.md) | [Project Structure](PROJECT_STRUCTURE.md) | [Board And Chip Reference](BOARD_AND_CHIP_REFERENCE.en.md) | [Module Reference](MODULE_REFERENCE.en.md)
+[English README](../README.md) | [中文](CLION_CMAKE_GUIDE.zh-CN.md) | [Project Structure](PROJECT_STRUCTURE.en.md) | [Board And Chip Reference](BOARD_AND_CHIP_REFERENCE.en.md) | [Module Reference](MODULE_REFERENCE.en.md)
 
 The primary workflow for this repository is **CLion + CMake Presets + Ninja + ARM GCC**. Do not use `MDK-ARM/` as the main project entry point; it is kept only as reference material.
 

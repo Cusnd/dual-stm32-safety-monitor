@@ -6,13 +6,6 @@
 
 namespace app {
 
-void BoardRgb::set(uint8_t red, uint8_t green, uint8_t blue)
-{
-  HAL_GPIO_WritePin(LED_R_GPIO_Port, LED_R_Pin, red ? GPIO_PIN_RESET : GPIO_PIN_SET);
-  HAL_GPIO_WritePin(LED_G_GPIO_Port, LED_G_Pin, green ? GPIO_PIN_RESET : GPIO_PIN_SET);
-  HAL_GPIO_WritePin(LED_B_GPIO_Port, LED_B_Pin, blue ? GPIO_PIN_RESET : GPIO_PIN_SET);
-}
-
 void Buzzer::init()
 {
   GPIO_InitTypeDef gpio = {0};

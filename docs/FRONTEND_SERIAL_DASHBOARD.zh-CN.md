@@ -23,7 +23,7 @@ Board A SENSOR --USART3 PB10/PB11--> Board B MONITOR --USART1 PA9/PA10 + USB-UAR
 同一位置会紧跟一行 JSON：
 
 ```json
-{"type":"sensor","schemaVersion":2,"seq":31,"tickMs":123456,"tempC":26,"humidityPct":54,"mq135Raw":1020,"mq2Raw":860,"rainRaw":980,"thermRaw":1660,"thermC10":325,"rainWet":0,"thermHot":0,"flame":0,"status":0,"alarm":"normal","thresholdProfile":0,"mute":0,"flashReady":1,"flashRecords":42,"externalRgb":1}
+{"type":"sensor","schemaVersion":2,"seq":31,"tickMs":123456,"tempC":26,"humidityPct":54,"mq135Raw":1020,"mq2Raw":860,"rainRaw":980,"thermRaw":1660,"thermC10":325,"rainWet":0,"thermHot":0,"flame":0,"status":0,"alarm":"normal","thresholdProfile":0,"mute":0,"flashReady":1,"flashRecords":42,"externalRgb":0}
 ```
 
 字段说明：
@@ -48,16 +48,17 @@ Board A SENSOR --USART3 PB10/PB11--> Board B MONITOR --USART1 PA9/PA10 + USB-UAR
 | `mute` | 蜂鸣器是否处于 K2 短按静音窗口 |
 | `flashReady` | 板 B 是否检测到可用 W25Q64 |
 | `flashRecords` | W25Q64 环形日志累计记录数，v2 字段 |
-| `externalRgb` | 外置 WS2813E 驱动是否初始化成功，v2 字段 |
+| `externalRgb` | 当前固件仍会输出的 legacy placeholder；看板不要求该字段，也不代表 WS2813/RGB 是现役输出 |
 
-前端 parser 同时兼容 v1/v2：没有 `schemaVersion` 的旧 JSON Lines 会按 v1 解析，新字段显示为 `--`；v2 数据则要求雨量、热敏、Flash 记录数和外置 RGB 字段齐全。
+前端 parser 同时兼容 v1/v2：没有 `schemaVersion` 的旧 JSON Lines 会按 v1 解析，新字段显示为 `--`；v2 数据则要求雨量、热敏和 Flash 记录数字段齐全。`externalRgb` 之类 placeholder 可被前端忽略。
 
 ## 前端运行
 
-在仓库根目录启动静态服务器：
+在仓库根目录启动 Vite 开发服务器：
 
 ```powershell
-python -m http.server 5173 -d frontend
+npm --prefix frontend install
+npm --prefix frontend run dev
 ```
 
 然后用 Chrome 或 Edge 打开：
@@ -71,17 +72,27 @@ http://localhost:5173
 ## 页面行为
 
 - 页面只解析以 `{` 开头的 JSON Lines，自动忽略 `[MONITOR]`、`[SENSOR]` 等普通日志。
-- 首页显示温度、湿度、MQ135、MQ2、雨量、热敏温度、火焰状态、综合告警、阈值档位、静音、Flash 状态、Flash 记录数和外置 RGB 状态。
-- 趋势图保留最近 80 条有效传感器记录，包含 T/H/MQ2/MQ135/RAIN/热敏曲线；旧 v1 数据缺少的新曲线会自动跳过。
+- 首页显示温度、湿度、MQ135、MQ2、雨量、热敏温度、火焰状态、综合告警、阈值档位、静音、Flash 状态和 Flash 记录数。
+- 趋势图保留最近 80 条有效传感器记录，包含 ECharts 图例、tooltip、缩放、传感器选中高亮和最近历史值；旧 v1 数据缺少的新曲线会自动跳过。
 - 若超过 3 秒没有收到有效 JSON，页面会显示“数据已超时”，但保留最后一次有效值。
 - “开始模拟”会按串口节奏逐行回放 `frontend/fixtures/sample-serial.log`，和真实 Web Serial 使用同一条解析链路。
-- “AI 洞察”区域基于最近数据给出风险等级、主要证据、趋势判断和建议动作；默认显示 DeepSeek/本地规则混合 provider，本地规则会持续纳入雨量湿态、热敏高温和热敏 ADC 异常。
-- “用户对话”区域会把当前传感器快照和最近历史发给后端 `/api/ai/chat`；若后端不可用，会自动回落到本地规则回答安全、报警原因、MQ2、雨量、热敏和排查类问题。
+- “AI 洞察”区域基于最近数据给出风险等级、主要证据、趋势判断和建议动作；默认显示 DeepSeek 直连/本地规则混合 provider，本地规则会持续纳入雨量湿态、热敏高温和热敏 ADC 异常。
+- “用户对话”区域默认使用页面里填写的 DeepSeek API Key 直连官方 Chat Completions 接口；若直连网络失败，会自动回落到本地规则回答安全、报警原因、MQ2、雨量、热敏和排查类问题。
 - 当前 Web Serial 主要支持 Chrome/Edge；其他浏览器会显示不支持提示。
 
 ## AI 接入
 
-前端不会直接调用 DeepSeek 官方接口，也不会保存 API key。DeepSeek key 应只放在本地或云端后端环境变量中，浏览器只调用后端代理：
+默认模式是前端直连 DeepSeek 官方 Chat Completions 接口。用户在页面里填写 API Key 后，key 只保存在当前浏览器标签页的 `sessionStorage`，不会写入仓库、URL、本地文件或 `localStorage`；关闭标签页后需要重新填写。
+
+```text
+frontend DirectDeepSeekProvider
+        -> Authorization: Bearer <user-entered key>
+        -> POST https://api.deepseek.com/chat/completions
+```
+
+直连请求体只包含官方接口需要的 `model`、带系统提示和传感器快照的 `messages`、`stream`、`temperature`，不会把 API Key 放进 JSON body。默认模型名是 `deepseek-v4-flash`，默认直连接口是 `https://api.deepseek.com/chat/completions`。
+
+如果后续要部署到公网，仍建议改回后端代理模式，因为任何浏览器直连方案都会让当前使用者的 key 出现在浏览器运行时里。可选代理链路如下：
 
 ```text
 frontend DeepSeekProvider
@@ -90,7 +101,7 @@ frontend DeepSeekProvider
         -> DeepSeek-compatible API
 ```
 
-默认请求体包含 `model`、带系统提示的 `messages`、原始 `conversation`、压缩后的 `snapshot`、`locale` 和 `requestType: "chat"`。默认模型名是 `deepseek-v4-flash`，默认代理地址是 `/api/ai/chat`。
+代理模式请求体包含 `model`、带系统提示的 `messages`、原始 `conversation`、压缩后的 `snapshot`、`locale` 和 `requestType: "chat"`。
 
 可选配置方式：
 
@@ -98,15 +109,16 @@ frontend DeepSeekProvider
 <script>
   window.SAFETY_MONITOR_CONFIG = {
     ai: {
-      mode: "deepseek",
-      endpoint: "/api/ai/chat",
+      mode: "direct",
+      directEndpoint: "https://api.deepseek.com/chat/completions",
+      proxyEndpoint: "/api/ai/chat",
       model: "deepseek-v4-flash"
     }
   };
 </script>
 ```
 
-也可以用 URL 参数临时覆盖：`?ai=local`、`?ai=deepseek`、`?aiEndpoint=/api/ai/chat`、`?aiModel=deepseek-v4-flash`。页面右上角的 AI 模式按钮会在 DeepSeek 和本地规则之间切换，并把选择保存在浏览器本地存储中。
+也可以用 URL 参数临时覆盖：`?ai=direct`、`?ai=local`、`?ai=proxy`、`?aiDirectEndpoint=https://api.deepseek.com/chat/completions`、`?aiProxyEndpoint=/api/ai/chat`、`?aiModel=deepseek-v4-flash`。页面右上角的 AI 模式按钮会在直连和本地规则之间切换，并把模式选择保存在浏览器本地存储中。
 
 ## CLion/CMake 关系
 

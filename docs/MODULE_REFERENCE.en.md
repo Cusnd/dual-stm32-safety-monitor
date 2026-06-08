@@ -17,7 +17,7 @@ This document is now the module-level index. Detailed per-module notes live unde
 | SSD1306 OLED | MONITOR | `SCL/SDA -> PB6/PB7` | [OLED module](hardware/modules/oled-ssd1306-module.en.md) |
 | Active buzzer | MONITOR | `SIG -> PB8` | [Active buzzer module](hardware/modules/active-buzzer-module.en.md) |
 | W25Q64 | MONITOR | `CS/SCK/MISO/MOSI -> PB12/PB13/PB14/PB15` | [W25Q64 module](hardware/modules/w25q64-module.en.md) |
-| WS2813E RGB | MONITOR | `DIN -> PA6/TIM3_CH1` | [WS2813E RGB module](hardware/modules/ws2813e-rgb-module.en.md) |
+| WS2813E RGB | Legacy expansion | `DIN -> PA6/TIM3_CH1` in old demos | [WS2813E RGB module](hardware/modules/ws2813e-rgb-module.en.md) |
 | USART3 link | Both | `PB10/PB11` crossed | [USART3 board link](hardware/modules/usart3-board-link.en.md) |
 
 ## Signal Policy
@@ -25,3 +25,4 @@ This document is now the module-level index. Detailed per-module notes live unde
 - ADC module outputs must be verified against the STM32 0..VDDA range.
 - Digital module outputs must be checked for polarity and 3.3 V compatibility.
 - Module schematics vary by vendor; the per-module pages describe generic reference circuits and project mapping.
+- The current MONITOR firmware does not compile a WS2813/RGB output path; keep those pages as reference unless support is restored.

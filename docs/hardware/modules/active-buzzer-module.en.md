@@ -30,9 +30,9 @@ GND -> GND
 
 ## Firmware Mapping
 
-- `Buzzer_Set()` drives `PB8`.
-- `Monitor_UpdateAlarm()` selects cadence.
-- K2 short press mutes buzzer only; LED states still show alarm state.
+- `Buzzer::set()` drives `PB8`.
+- `MonitorNode::updateAlarm()` selects cadence.
+- K2 short press mutes buzzer only; OLED, JSON, and flash logging still show the real alarm state.
 
 ## Test Notes
 

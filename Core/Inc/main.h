@@ -57,22 +57,14 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-/* Board-level resources from the Wildfire STM32F103C8T6 dual-USB core board.
- * PA1/PA2/PA3 drive the active-low RGB LEDs, while PA0 and PC13 are the two
- * on-board keys used by the monitor role.
- * 野火双 USB 核心板上的板载资源：PA1/PA2/PA3 控制低电平点亮的 RGB LED，
- * PA0 和 PC13 是显示节点使用的两个板载按键。
+/* Board-level keys from the Wildfire STM32F103C8T6 dual-USB core board.
+ * PA0 and PC13 are the two on-board keys used by the monitor role.
+ * 野火双 USB 核心板上的板载按键：PA0 和 PC13 是显示节点使用的两个按键。
  */
 #define KEY2_Pin GPIO_PIN_13
 #define KEY2_GPIO_Port GPIOC
 #define KEY1_Pin GPIO_PIN_0
 #define KEY1_GPIO_Port GPIOA
-#define LED_R_Pin GPIO_PIN_1
-#define LED_R_GPIO_Port GPIOA
-#define LED_G_Pin GPIO_PIN_2
-#define LED_G_GPIO_Port GPIOA
-#define LED_B_Pin GPIO_PIN_3
-#define LED_B_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 

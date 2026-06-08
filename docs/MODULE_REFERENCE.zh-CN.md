@@ -17,7 +17,7 @@
 | SSD1306 OLED | MONITOR | `SCL/SDA -> PB6/PB7` | [OLED 模块](hardware/modules/oled-ssd1306-module.zh-CN.md) |
 | 有源蜂鸣器 | MONITOR | `SIG -> PB8` | [有源蜂鸣器模块](hardware/modules/active-buzzer-module.zh-CN.md) |
 | W25Q64 | MONITOR | `CS/SCK/MISO/MOSI -> PB12/PB13/PB14/PB15` | [W25Q64 模块](hardware/modules/w25q64-module.zh-CN.md) |
-| WS2813E RGB | MONITOR | `DIN -> PA6/TIM3_CH1` | [WS2813E RGB 模块](hardware/modules/ws2813e-rgb-module.zh-CN.md) |
+| WS2813E RGB | legacy 扩展 | 旧演示中为 `DIN -> PA6/TIM3_CH1` | [WS2813E RGB 模块](hardware/modules/ws2813e-rgb-module.zh-CN.md) |
 | USART3 链路 | 两块板 | `PB10/PB11` 交叉 | [USART3 双板链路](hardware/modules/usart3-board-link.zh-CN.md) |
 
 ## 信号规则
@@ -25,3 +25,4 @@
 - 模拟模块输出必须确认落在 STM32 0..VDDA 范围。
 - 数字模块输出必须确认极性和 3.3 V 兼容性。
 - 模块原理图会因厂商不同而变化；单模块文档描述通用参考电路和本项目映射。
+- 当前 MONITOR 固件不编译 WS2813/RGB 输出路径；除非恢复支持，否则这些页面只作为参考资料。

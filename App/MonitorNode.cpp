@@ -1,6 +1,7 @@
 #include "MonitorNode.hpp"
 
 #include "App/Hal/Hardware.hpp"
+#include "App/Monitor/DisplayFormatter.hpp"
 
 #include "main.h"
 
@@ -10,7 +11,8 @@ namespace app {
 
 void MonitorNode::init()
 {
-  rx_pos_ = 0u;
+  decoder_.reset();
+  latest_frame_ = SensorFrame{};
   last_rx_ms_ = 0u;
   have_rx_ = 0u;
   page_ = 0u;
@@ -26,9 +28,6 @@ void MonitorNode::init()
 
   buzzer_.init();
   oled_.initBus();
-  led_.set(0u, 0u, 1u);
-  external_rgb_.init();
-  external_rgb_.setColor(0u, 0u, 24u);
 
   flash_.init();
   oled_.initController();
@@ -47,91 +46,84 @@ void MonitorNode::run()
   while (1)
   {
     const uint32_t now = HAL_GetTick();
+    const AlarmThresholds &thresholds = threshold_profiles[threshold_profile_];
 
-    processRx();
-    updateButtons();
+    processRx(now);
+    updateButtons(now);
+    flash_.process();
+
+    const AlarmEvaluation alarm = evaluateAlarm(
+      latest_frame_, have_rx_ != 0u, now, last_rx_ms_, mute_until_ms_, thresholds);
 
     if (static_cast<uint32_t>(now - last_alarm_ms_) >= alarm_period_ms)
     {
-      updateAlarm();
+      updateAlarm(alarm, now);
       last_alarm_ms_ = now;
     }
 
     if (static_cast<uint32_t>(now - last_ui_ms_) >= ui_period_ms)
     {
-      updateDisplay();
+      updateDisplay(alarm);
       last_ui_ms_ = now;
     }
 
-    if (flash_.present() && (have_rx_ != 0u) && !nodeLost())
+    if (flash_.present() && (have_rx_ != 0u) && (alarm.lost == 0u))
     {
-      const AlarmState state = danger() ? AlarmState::Danger : (warn() ? AlarmState::Warn : AlarmState::Normal);
-      const uint8_t state_value = static_cast<uint8_t>(state);
+      const uint8_t state_value = static_cast<uint8_t>(alarm.state);
       if ((state_value != last_logged_state_) ||
           (static_cast<uint32_t>(now - last_log_ms_) >= flash_log_period_ms))
       {
-        flash_.logFrame(latest_frame_, state, threshold_profile_, muted());
-        last_log_ms_ = now;
-        last_logged_state_ = state_value;
+        if (flash_.logFrame(latest_frame_, alarm.state, threshold_profile_, alarm.muted != 0u))
+        {
+          last_log_ms_ = now;
+          last_logged_state_ = state_value;
+        }
       }
     }
   }
 }
 
-void MonitorNode::processRx()
+void MonitorNode::processRx(uint32_t now)
 {
   int rx;
 
   while ((rx = hal::readUsartByte(USART3)) >= 0)
   {
     const uint8_t b = static_cast<uint8_t>(rx);
+    SensorFrame frame;
 
-    if (rx_pos_ == 0u)
+    switch (decoder_.push(b, frame))
     {
-      if (b != FrameCodec::head0)
-      {
-        continue;
-      }
-    }
-    else if ((rx_pos_ == 1u) && (b != FrameCodec::head1))
-    {
-      rx_pos_ = (b == FrameCodec::head0) ? 1u : 0u;
-      if (rx_pos_ == 1u)
-      {
-        rx_buf_[0] = FrameCodec::head0;
-      }
-      continue;
-    }
-
-    rx_buf_[rx_pos_++] = b;
-    if (rx_pos_ >= FrameCodec::total_len)
-    {
-      SensorFrame frame;
-      if (FrameCodec::decode(rx_buf_, frame))
-      {
+      case FrameStreamDecoder::Result::FrameReady: {
         latest_frame_ = frame;
         have_rx_ = 1u;
-        last_rx_ms_ = HAL_GetTick();
+        last_rx_ms_ = now;
+        const AlarmEvaluation alarm = evaluateAlarm(
+          latest_frame_, true, now, last_rx_ms_, mute_until_ms_,
+          threshold_profiles[threshold_profile_]);
         printf("[MONITOR] rx v%u seq=%u t=%u h=%u mq135=%u mq2=%u rain=%u therm=%d.%dC flame=%u status=0x%02X\r\n",
                FrameCodec::version,
                frame.seq, frame.temp, frame.humi, frame.mq135_adc, frame.mq2_adc,
                frame.rain_adc, frame.therm_c10 / 10,
                frame.therm_c10 < 0 ? -(frame.therm_c10 % 10) : (frame.therm_c10 % 10),
                frame.flame, frame.status);
-        printFrontendJson(frame);
+        printFrontendJson(frame, alarm);
+        break;
       }
-      else
-      {
+
+      case FrameStreamDecoder::Result::BadFrame:
         printf("[MONITOR] bad frame\r\n");
-      }
-      rx_pos_ = 0u;
+        break;
+
+      case FrameStreamDecoder::Result::NeedMore:
+      default:
+        break;
     }
   }
 }
 
-void MonitorNode::updateButtons()
+void MonitorNode::updateButtons(uint32_t now)
 {
-  const uint32_t now = HAL_GetTick();
   const uint8_t k1 = buttons_.key1Pressed() ? 1u : 0u;
   const uint8_t k2 = buttons_.key2Pressed() ? 1u : 0u;
 
@@ -163,78 +155,7 @@ void MonitorNode::updateButtons()
   k2_last_ = k2;
 }
 
-bool MonitorNode::linkWaiting() const
-{
-  return (have_rx_ == 0u) && !nodeLost();
-}
-
-bool MonitorNode::nodeLost() const
-{
-  return static_cast<uint32_t>(HAL_GetTick() - last_rx_ms_) > node_timeout_ms;
-}
-
-bool MonitorNode::danger() const
-{
-  const AlarmThresholds &th = threshold_profiles[threshold_profile_];
-  if (linkWaiting() || nodeLost())
-  {
-    return false;
-  }
-  return (latest_frame_.flame != 0u) ||
-         (latest_frame_.mq2_adc >= th.smoke_danger) ||
-         (latest_frame_.therm_hot != 0u) ||
-         (((latest_frame_.status & sensor_status(SensorStatus::ThermAdcError)) == 0u) &&
-          (latest_frame_.therm_c10 >= th.therm_danger_c10));
-}
-
-bool MonitorNode::warn() const
-{
-  const AlarmThresholds &th = threshold_profiles[threshold_profile_];
-  if (linkWaiting())
-  {
-    return false;
-  }
-  if (nodeLost())
-  {
-    return true;
-  }
-  return ((latest_frame_.status & sensor_status(SensorStatus::DhtError)) != 0u) ||
-         (latest_frame_.mq135_adc >= th.air_warn) ||
-         (latest_frame_.mq2_adc >= th.smoke_warn) ||
-         (latest_frame_.rain_wet != 0u) ||
-         (latest_frame_.rain_adc >= th.rain_wet) ||
-         (((latest_frame_.status & sensor_status(SensorStatus::ThermAdcError)) == 0u) &&
-          (latest_frame_.therm_c10 >= th.therm_warn_c10));
-}
-
-bool MonitorNode::muted() const
-{
-  const uint32_t now = HAL_GetTick();
-  return static_cast<int32_t>(mute_until_ms_ - now) > 0;
-}
-
-const char *MonitorNode::alarmStateString() const
-{
-  if (danger())
-  {
-    return "danger";
-  }
-  if (linkWaiting())
-  {
-    return "waiting";
-  }
-  if (nodeLost())
-  {
-    return "node_lost";
-  }
-  if (warn())
-  {
-    return "warn";
-  }
-  return "normal";
-}
-
-void MonitorNode::printFrontendJson(const SensorFrame &frame) const
+void MonitorNode::printFrontendJson(const SensorFrame &frame, const AlarmEvaluation &alarm) const
 {
   printf("{\"type\":\"sensor\",\"schemaVersion\":%u,\"seq\":%u,\"tickMs\":%lu,\"tempC\":%u,"
          "\"humidityPct\":%u,\"mq135Raw\":%u,\"mq2Raw\":%u,\"rainRaw\":%u,"
@@ -255,87 +176,48 @@ void MonitorNode::printFrontendJson(const SensorFrame &frame) const
          static_cast<unsigned int>(frame.therm_hot),
          static_cast<unsigned int>(frame.flame),
          static_cast<unsigned int>(frame.status),
-         alarmStateString(),
+         alarmStateString(alarm.state),
          static_cast<unsigned int>(threshold_profile_),
-         muted() ? 1u : 0u,
+         static_cast<unsigned int>(alarm.muted),
          flash_.present() ? 1u : 0u,
          static_cast<unsigned long>(flash_.recordCount()),
-         external_rgb_.ready() ? 1u : 0u);
+         0u);
 }
 
-void MonitorNode::updateAlarm()
+void MonitorNode::updateAlarm(const AlarmEvaluation &alarm, uint32_t now)
 {
-  const uint32_t now = HAL_GetTick();
-  const bool is_muted = muted();
-
-  if (danger())
+  if (alarm.state == AlarmState::Danger)
   {
-    led_.set(1u, 0u, 0u);
-    external_rgb_.setColor(((now / 150u) % 2u == 0u) ? 96u : 18u, 0u, 0u);
-    buzzer_.set(!is_muted && ((now / 150u) % 2u == 0u));
+    buzzer_.set((alarm.muted == 0u) && ((now / 150u) % 2u == 0u));
   }
-  else if (linkWaiting())
+  else if (alarm.state == AlarmState::Waiting)
   {
-    led_.set(0u, 0u, 1u);
-    external_rgb_.setColor(0u, 0u, 28u);
     buzzer_.set(false);
   }
-  else if (nodeLost())
+  else if (alarm.state == AlarmState::Lost)
   {
-    led_.set(0u, 0u, 1u);
-    external_rgb_.setColor(0u, 0u, ((now / 700u) % 2u == 0u) ? 80u : 12u);
-    buzzer_.set(!is_muted && ((now / 700u) % 2u == 0u));
+    buzzer_.set((alarm.muted == 0u) && ((now / 700u) % 2u == 0u));
   }
-  else if (warn())
+  else if (alarm.state == AlarmState::Warn)
   {
-    led_.set(1u, 1u, 0u);
-    external_rgb_.setColor(72u, 32u, 0u);
     buzzer_.set(false);
   }
   else
   {
-    led_.set(0u, 1u, 0u);
-    external_rgb_.setColor(0u, 54u, 0u);
     buzzer_.set(false);
   }
 }
 
-void MonitorNode::updateDisplay()
+void MonitorNode::updateDisplay(const AlarmEvaluation &alarm)
 {
-  char line[24];
-  const bool waiting = linkWaiting();
-  const bool lost = nodeLost();
+  MonitorDisplayLines lines;
+  formatMonitorDisplay(lines, latest_frame_, alarm, page_, threshold_profile_,
+                       threshold_profiles[threshold_profile_], flash_.present(),
+                       flash_.recordCount());
 
-  if (page_ == 0u)
+  for (uint8_t i = 0u; i < MonitorDisplayLines::count; i++)
   {
-    oled_.printLine(0u, waiting ? "WAIT SENSOR" :
-                        (lost ? "NODE LOST" :
-                         (danger() ? "STATE DANGER" :
-                          (warn() ? "STATE WARN" : "STATE NORMAL"))));
-    snprintf(line, sizeof(line), "T:%02uC H:%02u%%", latest_frame_.temp, latest_frame_.humi);
-    oled_.printLine(1u, line);
-    snprintf(line, sizeof(line), "AIR:%04u MQ2:%04u", latest_frame_.mq135_adc,
-             latest_frame_.mq2_adc);
-    oled_.printLine(2u, line);
-    snprintf(line, sizeof(line), "R:%04u N:%d.%d", latest_frame_.rain_adc,
-             latest_frame_.therm_c10 / 10,
-             latest_frame_.therm_c10 < 0 ? -(latest_frame_.therm_c10 % 10) :
-             (latest_frame_.therm_c10 % 10));
-    oled_.printLine(3u, line);
-  }
-  else
-  {
-    const AlarmThresholds &th = threshold_profiles[threshold_profile_];
-    snprintf(line, sizeof(line), "PROFILE:%u", threshold_profile_);
-    oled_.printLine(0u, line);
-    snprintf(line, sizeof(line), "AIR:%04u MQ2:%04u", th.air_warn, th.smoke_warn);
-    oled_.printLine(1u, line);
-    snprintf(line, sizeof(line), "RAIN:%04u HOT:%d", th.rain_wet, th.therm_danger_c10 / 10);
-    oled_.printLine(2u, line);
-    snprintf(line, sizeof(line), "SEQ:%03u F:%s L:%lu", latest_frame_.seq,
-             flash_.present() ? "OK" : "NO",
-             static_cast<unsigned long>(flash_.recordCount() % 1000u));
-    oled_.printLine(3u, line);
+    oled_.printLine(i, lines.text[i]);
   }
 }
 

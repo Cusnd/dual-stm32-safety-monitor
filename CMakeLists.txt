@@ -52,18 +52,30 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
 )
 
-# Add sources to executable
-target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+# Role-specific application sources.  Common protocol/HAL code is shared by
+# both images, while sensor and monitor drivers are only compiled for the board
+# that uses them.
+set(APP_COMMON_SOURCES
     App/Hal/Hardware.cpp
     App/Protocol/FrameCodec.cpp
+    App/Protocol/FrameStreamDecoder.cpp
     App/Drivers/BoardIo.cpp
+)
+
+set(APP_SENSOR_SOURCES
     App/Drivers/Dht11.cpp
+    App/SensorNode.cpp
+)
+
+set(APP_MONITOR_SOURCES
     App/Drivers/OledDisplay.cpp
     App/Drivers/W25q64FlashLogger.cpp
-    App/Drivers/Ws2813Led.cpp
-    App/SensorNode.cpp
+    App/Monitor/AlarmEvaluator.cpp
+    App/Monitor/DisplayFormatter.cpp
     App/MonitorNode.cpp
 )
+
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${APP_COMMON_SOURCES})
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
@@ -79,11 +91,13 @@ if(APP_NODE_ROLE STREQUAL "SENSOR")
     # Board A image: sensor acquisition node.
     # 板 A 镜像：传感器采集节点。
     target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE APP_NODE_ROLE=1)
+    target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${APP_SENSOR_SOURCES})
     set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME "Env-Monitor_sensor")
 elseif(APP_NODE_ROLE STREQUAL "MONITOR")
     # Board B image: OLED display, alarm, buttons, and optional flash logging.
     # 板 B 镜像：OLED 显示、报警、按键和可选 Flash 记录节点。
     target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE APP_NODE_ROLE=2)
+    target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${APP_MONITOR_SOURCES})
     set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME "Env-Monitor_monitor")
 else()
     message(FATAL_ERROR "APP_NODE_ROLE must be SENSOR or MONITOR")

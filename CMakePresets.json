@@ -40,9 +40,29 @@
             }
         },
         {
+            "name": "SensorRelease",
+            "displayName": "Board A sensor release node",
+            "description": "Compiles the optimized sensor image for flashing or final demo runs.",
+            "inherits": "default",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "APP_NODE_ROLE": "SENSOR"
+            }
+        },
+        {
+            "name": "MonitorRelease",
+            "displayName": "Board B monitor release node",
+            "description": "Compiles the optimized monitor image for flashing or final demo runs.",
+            "inherits": "default",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "APP_NODE_ROLE": "MONITOR"
+            }
+        },
+        {
             "name": "Release",
             "displayName": "Release build",
-            "description": "Generic release preset; use SensorDebug or MonitorDebug for the two-board demo images.",
+            "description": "Generic monitor release preset; use SensorRelease or MonitorRelease for explicit board images.",
             "inherits": "default",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
@@ -66,6 +86,16 @@
             "configurePreset": "MonitorDebug"
         },
         {
+            "name": "SensorRelease",
+            "displayName": "Build optimized board A sensor image",
+            "configurePreset": "SensorRelease"
+        },
+        {
+            "name": "MonitorRelease",
+            "displayName": "Build optimized board B monitor image",
+            "configurePreset": "MonitorRelease"
+        },
+        {
             "name": "Release",
             "displayName": "Build release image",
             "configurePreset": "Release"
@@ -82,6 +112,22 @@
             "name": "MonitorStlinkFlash",
             "displayName": "STLINK flash board B monitor image",
             "configurePreset": "MonitorDebug",
+            "targets": [
+                "stlink_flash"
+            ]
+        },
+        {
+            "name": "SensorReleaseStlinkFlash",
+            "displayName": "STLINK flash optimized board A sensor image",
+            "configurePreset": "SensorRelease",
+            "targets": [
+                "stlink_flash"
+            ]
+        },
+        {
+            "name": "MonitorReleaseStlinkFlash",
+            "displayName": "STLINK flash optimized board B monitor image",
+            "configurePreset": "MonitorRelease",
             "targets": [
                 "stlink_flash"
             ]

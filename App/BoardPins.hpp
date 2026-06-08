@@ -25,7 +25,4 @@ constexpr uint16_t buzzer_pin = GPIO_PIN_8;
 inline GPIO_TypeDef * const flash_cs_port = GPIOB;
 constexpr uint16_t flash_cs_pin = GPIO_PIN_12;
 
-inline GPIO_TypeDef * const external_rgb_port = GPIOA;
-constexpr uint16_t external_rgb_pin = GPIO_PIN_6;
-
 }  // namespace app::pins

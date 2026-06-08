@@ -1,408 +1,190 @@
-# Function Design And Coordination Walkthrough
+# Function Design Walkthrough
 
-[Chinese version](FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md) | [English README](../README.md) | [Chinese README](../README.zh-CN.md) | [Function Guide](FUNCTION_GUIDE.md) | [Project Structure](PROJECT_STRUCTURE.md)
+[README](../README.md) | [Chinese](FUNCTION_DESIGN_WALKTHROUGH.zh-CN.md) | [Function guide](FUNCTION_GUIDE.en.md) | [Project structure](PROJECT_STRUCTURE.en.md)
 
-This document explains how the functional parts of the dual-STM32 monitor are designed and coordinated. It is not just a function list: it connects startup, role selection, sensor sampling, frame encoding, USART3 reception, alarm decisions, OLED rendering, optional flash logging, and error recovery into one system-level story.
+This walkthrough explains how the current backend works as a complete dual-board system. It reflects the active CMake build: SENSOR acquisition, MONITOR stream decoding, OLED, buzzer, buttons, optional W25Q64 logging, and Web Serial JSON output.
 
-## 1. System Design
-
-The project uses two STM32F103C8T6 boards as a small distributed embedded system.
-
-| Node | Role | Main responsibility | Key functions |
-|---|---|---|---|
-| Board A | SENSOR | Read DHT11, MQ135, MQ2, rain, thermistor, and flame inputs; build a v2 frame; send it through USART3 | `SensorNode::run()`, `Dht11::read()`, `hal::readAdc1Channel()`, `FrameCodec::encode()`, `SensorNode::sendFrame()` |
-| Board B | MONITOR | Receive and verify frames; update OLED; drive RGB/buzzer/external RGB alarm; handle buttons; optionally log to flash | `MonitorNode::run()`, `MonitorNode::processRx()`, `FrameCodec::decode()`, `MonitorNode::updateAlarm()`, `MonitorNode::updateDisplay()`, `W25q64FlashLogger::logFrame()` |
+## System Flow
 
 ```mermaid
 flowchart LR
-  subgraph "Board A SENSOR"
-    A1["SensorNode::run()"] --> A2["hal::readAdc1Channel()"]
-    A1 --> A3["Dht11::read()"]
-    A1 --> A4["FrameCodec::encode()"]
-    A4 --> A5["SensorNode::sendFrame()"]
+  subgraph A["Board A SENSOR"]
+    S1["Sample DHT11, MQ135, MQ2, rain, thermistor, flame"]
+    S2["Build SensorFrame"]
+    S3["FrameCodec::encode()"]
   end
 
-  A5 -- "USART3 PB10/PB11\nAA 55 data frame" --> B1
-
-  subgraph "Board B MONITOR"
-    B1["USART3_IRQHandler()"] --> B2["RxRingBuffer ring buffer"]
-    B2 --> B3["MonitorNode::processRx()"]
-    B3 --> B4["FrameCodec::decode()"]
-    B4 --> B5["latest_frame_"]
-    B5 --> B6["MonitorNode::updateDisplay()"]
-    B5 --> B7["MonitorNode::updateAlarm()"]
-    B5 --> B8["W25q64FlashLogger::logFrame() optional"]
+  subgraph Link["USART3 PB10/PB11"]
+    L1["22-byte protocol v2 frame"]
   end
+
+  subgraph B["Board B MONITOR"]
+    M1["FrameStreamDecoder::push()"]
+    M2["evaluateAlarm()"]
+    M3["formatMonitorDisplay()"]
+    M4["Buzzer + OLED + buttons"]
+    M5["W25q64FlashLogger::process()"]
+    M6["printFrontendJson()"]
+  end
+
+  subgraph Web["Browser Dashboard"]
+    W1["parser.js schema v2"]
+    W2["analysis.js + AI/local rules"]
+    W3["i18n UI and event log"]
+  end
+
+  S1 --> S2 --> S3 --> L1 --> M1 --> M2
+  M2 --> M3 --> M4
+  M2 --> M5
+  M2 --> M6 --> W1 --> W2 --> W3
 ```
 
-The core design choice is one shared source file with two build roles. Protocol structures, serial helpers, data encoding, and display/alarm logic stay in one place, while CMake selects whether the image behaves as Board A or Board B.
+## Role Selection
 
-## 2. Build-Time Role Selection
+`CMakePresets.json` selects `APP_NODE_ROLE`; `Core/Src/main.cpp` uses that compile-time role to instantiate exactly one node object.
 
-The firmware role is selected by `APP_NODE_ROLE`.
+| Preset | Compile definition | Main object | Output |
+|---|---|---|---|
+| `SensorDebug` / `SensorRelease` | `APP_NODE_ROLE=1` | `SensorNode` | `Env-Monitor_sensor.*` |
+| `MonitorDebug` / `MonitorRelease` | `APP_NODE_ROLE=2` | `MonitorNode` | `Env-Monitor_monitor.*` |
 
-```mermaid
-flowchart TD
-  P["CMake preset"] --> S{"APP_NODE_ROLE"}
-  S -->|"SENSOR = 1"| A["Env-Monitor_sensor.hex"]
-  S -->|"MONITOR = 2"| B["Env-Monitor_monitor.hex"]
-  A --> C["main() enters SensorNode::run()"]
-  B --> D["main() enters MonitorNode::run()"]
-```
+Common initialization always runs first: HAL, 72 MHz system clock, board-level GPIO, DWT delay, USART1 debug/JSON, and USART3 board link. The monitor role enables USART3 RX interrupt so bytes can be pushed into the ring buffer while the cooperative loop continues.
 
-| Design point | Location | Purpose |
+## SENSOR Backend
+
+`SensorNode::run()` sends one frame every `sensor_period_ms`.
+
+| Input | Source | Frame field |
 |---|---|---|
-| Role macros | `APP_ROLE_SENSOR`, `APP_ROLE_MONITOR` | Keep role checks readable in preprocessor blocks |
-| CMake mapping | `CMakeLists.txt` | Convert `SENSOR` and `MONITOR` presets into `APP_NODE_ROLE=1/2` |
-| Unused-function handling | `APP_MAYBE_UNUSED` | Suppress warnings when a role-specific helper is not called in the other firmware |
-| Output names | `Env-Monitor_sensor`, `Env-Monitor_monitor` | Current artifact names used to keep the two firmware products separate |
+| DHT11 temperature/humidity | `Dht11::read()` every `dht11_period_ms` | `temp`, `humi`, `DhtError` status bit |
+| MQ135 | ADC1 channel 4 on `PA4` | `mq135_adc` |
+| MQ2 | ADC1 channel 5 on `PA5` | `mq2_adc` |
+| Rain sensor | ADC1 channel 6 on `PA6` | `rain_adc`, `rain_wet`, `RainWet` status bit |
+| Thermistor AO | ADC1 channel 7 on `PA7` | `therm_adc`, `therm_c10`, `ThermAdcError` status bit |
+| Thermistor DO | GPIO `PB9`, active-low | `therm_hot`, `ThermHotDigital` status bit |
+| Flame DO | GPIO `PB13`, active-low | `flame` |
 
-## 3. Startup Path
+Analog MQ/rain/thermistor values use a small smoothing filter after the first sample. The thermistor conversion is intentionally table-based so the firmware does not need runtime floating point. Invalid extreme ADC values mark the thermistor ADC fault bit and set the reported thermistor temperature to zero.
 
-```mermaid
-flowchart TD
-  R["MCU reset"] --> M["main()"]
-  M --> H["HAL_Init()"]
-  H --> C["SystemClock_Config()"]
-  C --> G["MX_GPIO_Init()"]
-  G --> I["App_Init()"]
-  I --> D["Delay_Init()"]
-  I --> U1["hal::initDebugUsart1()"]
-  I --> U3["hal::initNodeUsart3()"]
-  I --> K{"APP_NODE_ROLE"}
-  K -->|"SENSOR"| SA["SensorNode::initGpio()\nhal::initAdc1()"]
-  K -->|"MONITOR"| MB["MonitorNode::init()\nW25q64FlashLogger::init()\nOledDisplay::initController()"]
-  SA --> SL["SensorNode::run()"]
-  MB --> ML["MonitorNode::run()"]
-```
+## Protocol v2
 
-| Function | Design intent | Coordination |
-|---|---|---|
-| `main()` | Common entry point for both firmware images | Initializes HAL, clock, GPIO, application peripherals, then enters one role loop |
-| `SystemClock_Config()` | Set the board to 72 MHz SYSCLK | Provides stable timing for USART, SPI, ADC, DWT delay, and HAL tick |
-| `MX_GPIO_Init()` | Initialize shared board resources | Configures K1/K2 and the active-low RGB LED pins |
-| `App_Init()` | Separate common initialization from role-specific initialization | Always initializes USART1/USART3, then initializes only the current node's peripherals |
-| `Delay_Init()` | Enable DWT cycle counter | Enables `Delay_Us()` for DHT11 timing and software I2C |
-| `hal::initDebugUsart1()` | Keep USART1 as the USB-UART debug channel | Supports `printf()` through `__io_putchar()` |
-| `hal::initNodeUsart3()` | Configure the board-to-board link | Board B also enables `USART3_IRQHandler()` |
-| `Error_Handler()` | Stop safely on unrecoverable initialization errors | Used when HAL clock configuration fails |
-| `assert_failed()` | Hook for full assert builds | Can later be extended to print file and line through USART1 |
-
-## 4. Board A Sampling Pipeline
-
-Board A sends one data frame every second inside `SensorNode::run()`. MQ135, MQ2, rain, thermistor, and flame state are refreshed in every frame; DHT11 is refreshed at a safe greater-than-2-second interval, and skipped frames reuse the last temperature/humidity reading.
-
-```mermaid
-flowchart TD
-  L["SensorNode::run()"] --> T{"1000 ms elapsed?"}
-  T -->|"No"| L
-  T -->|"Yes"| A["hal::readAdc1Channel(4)\nMQ135"]
-  A --> B["hal::readAdc1Channel(5)\nMQ2"]
-  B --> B2["hal::readAdc1Channel(6/7)\nRain + thermistor"]
-  B2 --> C{"2100 ms since last DHT11 read?"}
-  C -->|"Yes"| C1["Dht11::read()"]
-  C -->|"No"| D["Reuse last temp/humi"]
-  C1 --> D
-  D --> E["Exponential moving average"]
-  E --> F["Read flame PB13\nactive-low"]
-  F --> G["Fill SensorFrame"]
-  G --> H["FrameCodec::encode()"]
-  H --> I["SensorNode::sendFrame()"]
-  I --> J["printf debug log"]
-  J --> L
-```
-
-| Function | Role in the chain | Design details |
-|---|---|---|
-| `SensorNode::initGpio()` | Pin preparation | PA4/PA5/PA6/PA7 analog inputs for MQ, rain, and thermistor AO; PB9/PB13 digital inputs; PB12 open-drain DHT11 |
-| `hal::initAdc1()` | ADC preparation | Enables ADC1, selects safe ADC clock, calibrates before sampling |
-| `hal::readAdc1Channel()` | Analog sampling | Performs one conversion and returns a raw 12-bit reading |
-| `Dht11::read()` | Temperature/humidity sampling | Runs the full DHT11 timing protocol and checksum verification at the DHT11-safe refresh interval |
-| `SensorNode::sendFrame()` | Transport handoff | Encodes one `SensorFrame` and sends it on USART3 |
-
-MQ values use a simple integer exponential moving average:
+The wire format is fixed-size and simple enough to inspect with a serial analyzer.
 
 ```text
-first sample: avg = raw
-next samples: avg = (avg * 3 + raw) / 4
+AA 55 LEN VER TEMP HUMI MQ135 MQ2 RAIN THERM_ADC THERM_C10 FLAME RAIN_WET THERM_HOT SEQ STATUS CHECKSUM
 ```
 
-This avoids storing a full sample window, reduces noise, and stays friendly to a small MCU.
-
-## 5. DHT11 Timing Design
-
-The DHT11 interface is split into small helpers because it is timing-sensitive.
-
-```mermaid
-sequenceDiagram
-  participant MCU
-  participant DHT11
-  MCU->>MCU: DHT11_SetOutput()
-  MCU->>DHT11: Pull DATA low 20 ms
-  MCU->>DHT11: Release DATA high 30 us
-  MCU->>MCU: DHT11_SetInput()
-  DHT11-->>MCU: Response pulses
-  loop 40 bits
-    DHT11-->>MCU: Bit high pulse
-    MCU->>MCU: Delay_Us(40)
-    MCU->>MCU: Read DATA level
-  end
-  MCU->>MCU: Verify checksum
-```
-
-| Function | Why it exists |
+| Property | Current value |
 |---|---|
-| `DHT11_SetOutput()` | Lets the MCU pull the bus low for the start signal |
-| `DHT11_SetInput()` | Releases the bus so the sensor can drive data |
-| `DHT11_WaitLevel()` | Waits for expected high/low transitions with timeout protection |
-| `Dht11::read()` | Orchestrates the whole protocol and returns success/failure |
+| Header | `0xAA 0x55` |
+| Version | `2` |
+| Payload length | `18` |
+| Total length | `22` |
+| Multi-byte order | Big-endian for 16-bit fields |
+| Checksum | Low 8 bits of `LEN + payload bytes` |
 
-DHT11 reads are separated by `DHT11_PERIOD_MS = 2100`; with the 1-second frame period this refreshes about every 3 seconds. If DHT11 fails, the system keeps running and sets `STATUS_DHT_ERROR` in the frame instead of blocking the whole node.
+`FrameStreamDecoder` exists because the monitor receives a byte stream, not pre-cut packets. It keeps a small buffer, waits for `AA 55`, handles overlapping headers, rejects bad frames, then returns to searching without blocking the monitor loop.
 
-## 6. Frame Protocol
+## MONITOR Scheduler
+
+`MonitorNode::run()` is a cooperative loop. Each iteration does a small amount of work and returns quickly.
+
+| Task | Cadence | Function |
+|---|---|---|
+| Consume RX bytes | Every loop | `processRx()` |
+| Scan buttons | Every loop | `updateButtons()` |
+| Advance flash state machine | Every loop | `flash_.process()` |
+| Recompute alarm and buzzer | Every `alarm_period_ms` | `evaluateAlarm()`, `updateAlarm()` |
+| Refresh OLED | Every `ui_period_ms` | `formatMonitorDisplay()`, `updateDisplay()` |
+| Schedule flash log | State change or every `flash_log_period_ms` | `flash_.logFrame()` |
+
+This design avoids long waits in the main loop. Flash erase/program completion is polled by `W25q64FlashLogger::process()`, so display and serial receive remain responsive while flash operations are in flight.
+
+## Alarm Evaluation
+
+`evaluateAlarm()` turns the latest frame and monitor timing into a compact `AlarmEvaluation`.
 
 ```mermaid
-flowchart LR
-  S["SensorFrame"] --> E["FrameCodec::encode()"]
-  E --> B["AA 55 LEN payload CHECKSUM"]
-  B --> U["hal::sendUsartBuffer(USART3)"]
-  U --> R["USART3 link"]
-  R --> I["USART3_IRQHandler()"]
-  I --> P["MonitorNode::processRx()"]
-  P --> D["FrameCodec::decode()"]
-  D --> T["SensorFrame"]
+flowchart TD
+  A["Have a recent frame?"] -->|No, first seconds| W["Waiting"]
+  A -->|No, timeout > node_timeout_ms| L["Lost"]
+  A -->|Yes| D{"Danger condition?"}
+  D -->|Yes| Danger["Danger"]
+  D -->|No| R{"Warning condition?"}
+  R -->|Yes| Warn["Warn"]
+  R -->|No| Normal["Normal"]
 ```
 
-| Function | Design role |
+Danger conditions are flame trigger, MQ2 danger threshold, thermistor DO high-temperature trigger, or thermistor temperature above the active danger threshold. Warning conditions are DHT11 error, MQ135 warning threshold, MQ2 warning threshold, rain wet state, rain ADC above the wet threshold, thermistor ADC fault, or thermistor temperature above the warning threshold.
+
+K2 short press sets `mute_until_ms = now + mute_time_ms`. Muting affects buzzer output only; alarm state, OLED, JSON, and flash logging still reflect the real risk state.
+
+## OLED And Buttons
+
+`DisplayFormatter` keeps OLED text construction out of the monitor loop.
+
+| Page | Lines |
 |---|---|
-| `FrameCodec::checksum()` | Adds `LEN + payload` and returns the low 8 bits |
-| `FrameCodec::encode()` | Converts `SensorFrame` to the fixed 22-byte v2 wire format |
-| `FrameCodec::decode()` | Verifies header, length, checksum, then rebuilds `SensorFrame` |
-| `MonitorNode::processRx()` | Re-synchronizes on `AA 55` and rejects bad frames |
+| Page 0 | State title, DHT11 temperature/humidity, MQ135/MQ2, rain/thermistor |
+| Page 1 | Threshold profile, warning/danger thresholds, sequence, flash presence, flash record count |
 
-Frame bytes:
+K1 toggles page 0/page 1. K2 short press mutes the buzzer for 60 seconds. K2 long press cycles through `threshold_profiles` from `App/Config.hpp`.
 
-| Index | Field | Meaning |
-|---|---|---|
-| 0-1 | `AA 55` | Header |
-| 2 | `LEN` | Fixed v2 payload length `18` |
-| 3 | `VER` | Protocol version `2` |
-| 4-5 | `TEMP/HUMI` | DHT11 values |
-| 6-13 | `MQ135/MQ2/RAIN/THERM` | ADC readings, high byte first |
-| 14-15 | `THERM_C10` | Thermistor temperature in 0.1 deg C |
-| 16-18 | `FLAME/RAIN_WET/THERM_HOT` | Boolean sensor flags |
-| 19 | `SEQ` | Rolling sequence number |
-| 20 | `STATUS` | bit0 DHT error, bit1 therm hot, bit2 rain wet, bit3 therm ADC fault |
-| 21 | `CHECKSUM` | Low 8 bits of `LEN + payload` |
+## Optional W25Q64 Logging
 
-## 7. Board B Receive Design
+The logger is optional. If JEDEC ID does not match a supported W25Q64-compatible part, `present()` returns false and the monitor continues without logging.
 
-The USART interrupt stores bytes only; parsing happens in the main loop.
-
-```mermaid
-flowchart TD
-  RX["USART3 byte arrives"] --> ISR["USART3_IRQHandler()"]
-  ISR --> FULL{"ring buffer full?"}
-  FULL -->|"No"| PUSH["store byte\nadvance head"]
-  FULL -->|"Yes"| DROP["drop newest byte"]
-  PUSH --> PROC["MonitorNode::processRx()"]
-  DROP --> PROC
-  PROC --> SYNC{"AA 55 found?"}
-  SYNC -->|"No"| WAIT["wait for more bytes"]
-  SYNC -->|"Yes"| LEN["collect FRAME_TOTAL_LEN bytes"]
-  LEN --> DEC["FrameCodec::decode()"]
-  DEC --> OK{"valid?"}
-  OK -->|"Yes"| UPDATE["update latest_frame_\nlast_rx_ms_"]
-  OK -->|"No"| BAD["ignore bad frame"]
-```
-
-This keeps the ISR short and predictable. A bad or partial frame can only be dropped; it cannot corrupt the latest valid display data.
-
-## 8. Board B Cooperative Scheduler
-
-`MonitorNode::run()` is a cooperative super-loop.
-
-```mermaid
-flowchart TD
-  L["MonitorNode::run()"] --> RX["MonitorNode::processRx()\nevery loop"]
-  RX --> BTN["MonitorNode::updateButtons()\nevery loop"]
-  BTN --> A{"100 ms elapsed?"}
-  A -->|"Yes"| AL["MonitorNode::updateAlarm()"]
-  A -->|"No"| U
-  AL --> U{"300 ms elapsed?"}
-  U -->|"Yes"| UI["MonitorNode::updateDisplay()"]
-  U -->|"No"| F
-  UI --> F{"10 s elapsed and flash available?"}
-  F -->|"Yes"| FL["W25q64FlashLogger::logFrame()"]
-  F -->|"No"| L
-  FL --> L
-```
-
-| Task | Frequency | Function | Reason |
-|---|---|---|---|
-| RX parsing | Every loop | `MonitorNode::processRx()` | Keep serial data from piling up |
-| Buttons | Every loop | `MonitorNode::updateButtons()` | Make K1/K2 responsive |
-| Alarm | 100 ms | `MonitorNode::updateAlarm()` | Keep buzzer/LED patterns smooth |
-| OLED | 300 ms | `MonitorNode::updateDisplay()` | Avoid wasting time refreshing too often |
-| Flash log | 10 s | `W25q64FlashLogger::logFrame()` | Reduce flash write frequency |
-
-## 9. Button Interaction
-
-`MonitorNode::updateButtons()` uses edge detection instead of blocking waits.
-
-| Button | Action | State variable |
-|---|---|---|
-| K1 press | Switch OLED page | `page_` |
-| K2 short press | Mute buzzer for 60 s | `g_mute_until_ms` |
-| K2 long press | Cycle threshold profile | `threshold_profile_` |
-
-The mute state only affects the buzzer. LED color still reflects the true system status.
-
-## 10. Alarm Priority
-
-```mermaid
-flowchart TD
-  D["MonitorNode::updateAlarm()"] --> A{"MonitorNode::danger()?"}
-  A -->|"Yes"| RED["red LED\nfast buzzer"]
-  A -->|"No"| L{"MonitorNode::nodeLost()?"}
-  L -->|"Yes"| BLUE["blue LED\nslow buzzer"]
-  L -->|"No"| W{"MonitorNode::warn()?"}
-  W -->|"Yes"| YELLOW["yellow LED\nbuzzer off"]
-  W -->|"No"| GREEN["green LED\nbuzzer off"]
-```
-
-| Function | Meaning |
+| Area | Format |
 |---|---|
-| `MonitorNode::nodeLost()` | No valid sensor frame for more than 3 seconds |
-| `MonitorNode::danger()` | Flame detected or MQ2 reaches danger threshold |
-| `MonitorNode::warn()` | DHT11 error, MQ135 warning, MQ2 warning, or node-lost state |
-| `MonitorNode::updateAlarm()` | Applies priority and drives `BoardRgb::set()` / `Buzzer::set()` |
+| Sector 0 | 16-byte cursor metadata entries with magic, version, log address, record count, CRC |
+| Sector 1 to end | 32-byte circular records with frame values, alarm state, tick, profile, mute flag, record count, CRC |
 
-Priority order is danger, node-lost, warning, normal. This prevents stale or missing data from being shown as normal.
+Records are scheduled when the alarm state changes or when the periodic logging interval expires. The logger erases a sector only when the next circular write reaches that sector boundary.
 
-## 11. OLED Display Stack
+## JSON Lines And Frontend Schema
 
-```mermaid
-flowchart TD
-  APP["MonitorNode::updateDisplay()"] --> LINE["OledDisplay::printLine()"]
-  LINE --> PUTS["OLED_Puts()"]
-  PUTS --> CHAR["OLED_PutChar()"]
-  CHAR --> FONT["Font5x7()"]
-  CHAR --> DATA["OLED_Data()"]
-  DATA --> WRITE["OLED_Write()"]
-  WRITE --> I2C["I2C_Start()\nI2C_WriteByte()\nI2C_Stop()"]
-  I2C --> GPIO["I2C_SDA()/I2C_SCL()\nDelay_Us()"]
+After each accepted frame, `MonitorNode::printFrontendJson()` emits one JSON object on USART1. Current firmware emits schema v2.
+
+```json
+{
+  "type": "sensor",
+  "schemaVersion": 2,
+  "seq": 31,
+  "tickMs": 123456,
+  "tempC": 26,
+  "humidityPct": 54,
+  "mq135Raw": 1020,
+  "mq2Raw": 860,
+  "rainRaw": 980,
+  "thermRaw": 1660,
+  "thermC10": 325,
+  "rainWet": 0,
+  "thermHot": 0,
+  "flame": 0,
+  "status": 0,
+  "alarm": "normal",
+  "thresholdProfile": 0,
+  "mute": 0,
+  "flashReady": 1,
+  "flashRecords": 42,
+  "externalRgb": 0
+}
 ```
 
-| Layer | Functions | Responsibility |
-|---|---|---|
-| Page layer | `MonitorNode::updateDisplay()` | Decide which four text lines to show |
-| Text layer | `OledDisplay::printLine()`, `OLED_Puts()`, `OLED_PutChar()`, `Font5x7()` | Convert strings into pixel columns |
-| OLED command layer | `OledDisplay::initController()`, `OledDisplay::clear()`, `OBoardRgb::setCursor()`, `OLED_Cmd()`, `OLED_Data()` | Talk to the SSD1306 controller |
-| Software-I2C layer | `I2C_Start()`, `I2C_Stop()`, `I2C_WriteByte()`, `I2C_SDA()`, `I2C_SCL()`, `I2C_Delay()` | Generate the GPIO-based I2C waveform |
+The frontend parser accepts legacy schema v1 records by filling rain/thermistor/flash-count extension fields with `null` or `0`. Schema v2 records must include the extension fields. `externalRgb` is a legacy placeholder that may appear in current JSON output, but it is not a required dashboard field and does not mean the current CMake build drives WS2813/RGB hardware. The dashboard marks data stale after `STALE_AFTER_MS` without a fresh frame and displays node-lost style risk even if the last JSON line said `normal`.
 
-## 12. Optional W25Q64 Logging
+## Failure Modes
 
-Flash logging is optional: if the JEDEC ID is not valid, monitoring continues without logging.
-
-```mermaid
-flowchart TD
-  I["W25q64FlashLogger::init()"] --> SPI["configure SPI2"]
-  SPI --> ID["read JEDEC ID"]
-  ID --> OK{"valid chip?"}
-  OK -->|"No"| OFF["flash_.present() = 0"]
-  OK -->|"Yes"| ON["flash_.present() = 1"]
-  ON --> META["Flash_LoadMetadata()\nsector 0 cursor"]
-  META --> RUN["MonitorNode::run()"]
-  RUN --> LOG{"10 s elapsed\nor state changed?"}
-  LOG -->|"Yes"| REC["W25q64FlashLogger::logFrame()"]
-  REC --> WRAP{"sector boundary?"}
-  WRAP -->|"Yes"| ERASE["Flash_SectorErase(log sector)"]
-  WRAP -->|"No"| PP
-  ERASE --> PP["Flash_PageProgram()\n32-byte record"]
-  PP --> META2["Flash_WriteMetadata()"]
-  LOG -->|"No"| RUN
-```
-
-| Function | Purpose |
+| Situation | Handling |
 |---|---|
-| `Flash_CS()` | Control chip select |
-| `SPI2_TxRx()` | Transfer one SPI byte |
-| `Flash_ReadStatus()` / `Flash_WaitReady()` | Wait until erase/program operations finish |
-| `Flash_WriteEnable()` | Enable write/erase operations |
-| `Flash_SectorErase()` | Erase one 4 KB sector |
-| `Flash_PageProgram()` | Write one short record |
-| `W25q64FlashLogger::init()` | Detect a compatible chip and restore circular-log cursor metadata |
-| `Flash_LoadMetadata()` / `Flash_WriteMetadata()` | Restore and append sector 0 cursor entries |
-| `W25q64FlashLogger::logFrame()` | Save one fixed 32-byte v2 circular-log record |
+| USART3 noise or misalignment | `FrameStreamDecoder` drops bad bytes and searches for the next valid header. |
+| Bad checksum | Decoder reports `BadFrame`; monitor logs a bad-frame line and recovers. |
+| Board A silent | Alarm evaluation transitions from waiting to lost after timeout. |
+| DHT11 read error | SENSOR sets status bit 0; monitor treats it as warning. |
+| Thermistor ADC invalid | SENSOR sets status bit 3; monitor treats it as warning and avoids using invalid temperature for danger. |
+| W25Q64 absent or timeout | Logger disables itself; monitor keeps running. |
+| Browser has no Web Serial | Dashboard exposes replay mode and localized support text. |
 
-## 13. Debug Logging
+## i18n Boundary
 
-```mermaid
-flowchart LR
-  P["printf()"] --> C["__io_putchar()"]
-  C --> U["hal::sendUsartByte(USART1)"]
-  U --> CH["USB-to-UART bridge"]
-  CH --> PC["serial terminal\n115200 8N1"]
-```
-
-USART1 is reserved for debug logs because the reference design routes `PA9/PA10` to a USB-UART bridge.
-
-## 14. Shared State Variables
-
-| Variable | Written by | Read by | Purpose |
-|---|---|---|---|
-| `latest_frame_` | `MonitorNode::processRx()` | display, alarm, flash logic | Latest valid sensor data |
-| `last_rx_ms_` | `MonitorNode::processRx()` | `MonitorNode::nodeLost()` | Node-lost timing |
-| `page_` | `MonitorNode::updateButtons()` | `MonitorNode::updateDisplay()` | OLED page selection |
-| `threshold_profile_` | `MonitorNode::updateButtons()` | warning/danger/display/logging | Current threshold profile |
-| `g_mute_until_ms` | `MonitorNode::updateButtons()` | `MonitorNode::updateAlarm()` | Buzzer mute deadline |
-| `flash_.present()` | `W25q64FlashLogger::init()` | display/logging | Whether optional flash exists |
-| `log_addr_` | `W25q64FlashLogger::logFrame()` | `W25q64FlashLogger::logFrame()` | Next log address |
-| `RxRingBuffer` | ISR and `hal::readUsartByte()` | `MonitorNode::processRx()` | USART3 receive handoff |
-
-## 15. End-To-End Data Path
-
-```mermaid
-flowchart LR
-  A["Sensors"] --> B["SensorNode::initGpio()\nhal::initAdc1()"]
-  B --> C["SensorNode::run()"]
-  C --> D["filter + status flags"]
-  D --> E["SensorFrame"]
-  E --> F["FrameCodec::encode()"]
-  F --> G["USART3 link"]
-  G --> H["USART3_IRQHandler()"]
-  H --> I["MonitorNode::processRx()"]
-  I --> J["latest_frame_"]
-  J --> K["MonitorNode::danger()\nMonitorNode::warn()\nMonitorNode::nodeLost()"]
-  K --> L["MonitorNode::updateAlarm()"]
-  J --> M["MonitorNode::updateDisplay()"]
-  J --> N["W25q64FlashLogger::logFrame() optional"]
-```
-
-The flow is intentionally modular: sampling, framing, reception, alarm decisions, display output, and optional logging are separate stages connected by a small set of state variables.
-
-## 16. Fault Handling
-
-| Fault | Detection point | Response |
-|---|---|---|
-| DHT11 read failure | `Dht11::read()` returns `0` | Board A still sends a frame with `STATUS_DHT_ERROR` |
-| Serial noise or byte slip | `FrameCodec::decode()` fails | Bad frame is ignored; parser resynchronizes on `AA 55` |
-| RX buffer full | `USART3_IRQHandler()` | Drop newest byte instead of blocking inside ISR |
-| Board A disconnected | `MonitorNode::nodeLost()` | OLED shows `NODE LOST`; blue LED and slow buzzer |
-| Flash not connected | `W25q64FlashLogger::init()` | `flash_.present()=0`; core monitoring still works |
-| Flash log wrap | `W25q64FlashLogger::logFrame()` | Keep metadata in sector 0 and wrap 32-byte records across the 8 MB log area |
-| Clock configuration failure | `SystemClock_Config()` | `Error_Handler()` disables interrupts and stops |
-| Full assert failure | `assert_failed()` | Hook kept for future debug output |
-
-## 17. Project Walkthrough Notes
-
-A concise project walkthrough can follow this order:
-
-1. Show the dual-node architecture: Board A samples, Board B displays and alarms, USART3 links them.
-2. Explain why USART1 is reserved for USB-UART debug logs.
-3. Walk through Board A: DHT11 timing, MQ/rain/thermistor ADC sampling, flame input, smoothing, frame encoding.
-4. Walk through Board B: interrupt ring buffer, frame resynchronization, checksum, OLED/alarm/button/external RGB logic.
-5. Explain robustness: DHT11/thermistor status bits, bad-frame rejection, node-lost detection, circular flash logging.
-
-The project can be summarized as a small dual-MCU safety-monitoring system with clear node roles, a defined serial protocol, cooperative scheduling, and explicit recovery behavior.
+Runtime i18n is implemented in the browser dashboard and documentation. Firmware OLED and debug strings remain compact English/protocol labels to preserve flash/RAM simplicity and keep serial output stable for parsers.

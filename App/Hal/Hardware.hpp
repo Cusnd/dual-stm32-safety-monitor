@@ -6,7 +6,7 @@
 
 namespace app::hal {
 
-constexpr uint8_t node_rx_buf_size = 64u;
+constexpr uint8_t node_rx_buf_size = 128u;
 
 class GpioPin
 {
@@ -29,11 +29,13 @@ public:
   void clear();
   bool pushFromIsr(uint8_t data);
   int read();
+  uint16_t overflowCount() const;
 
 private:
   volatile uint8_t buffer_[node_rx_buf_size];
   volatile uint8_t head_;
   volatile uint8_t tail_;
+  volatile uint16_t overflow_count_;
 };
 
 void initDwtDelay();
@@ -44,6 +46,7 @@ void initNodeUsart3(bool enable_rx_interrupt);
 void sendUsartByte(USART_TypeDef *usart, uint8_t byte);
 void sendUsartBuffer(USART_TypeDef *usart, const uint8_t *data, uint16_t len);
 int readUsartByte(USART_TypeDef *usart);
+uint16_t nodeUsartOverflowCount();
 int writeDebugChar(int ch);
 void handleUsart3Irq();
 

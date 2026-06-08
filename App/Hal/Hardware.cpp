@@ -33,6 +33,7 @@ void RxRingBuffer::clear()
 {
   head_ = 0u;
   tail_ = 0u;
+  overflow_count_ = 0u;
 }
 
 bool RxRingBuffer::pushFromIsr(uint8_t data)
@@ -40,6 +41,10 @@ bool RxRingBuffer::pushFromIsr(uint8_t data)
   const uint8_t next = static_cast<uint8_t>((head_ + 1u) % node_rx_buf_size);
   if (next == tail_)
   {
+    if (overflow_count_ != 0xFFFFu)
+    {
+      overflow_count_++;
+    }
     return false;
   }
 
@@ -58,6 +63,11 @@ int RxRingBuffer::read()
   const uint8_t data = buffer_[tail_];
   tail_ = static_cast<uint8_t>((tail_ + 1u) % node_rx_buf_size);
   return static_cast<int>(data);
+}
+
+uint16_t RxRingBuffer::overflowCount() const
+{
+  return overflow_count_;
 }
 
 void initDwtDelay()
@@ -155,6 +165,11 @@ int readUsartByte(USART_TypeDef *usart)
     return -1;
   }
   return static_cast<int>(usart->DR & 0xFFu);
+}
+
+uint16_t nodeUsartOverflowCount()
+{
+  return g_node_rx.overflowCount();
 }
 
 int writeDebugChar(int ch)

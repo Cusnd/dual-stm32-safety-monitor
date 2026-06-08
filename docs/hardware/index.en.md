@@ -16,7 +16,7 @@ This directory documents the project as a generic STM32F103C8T6 dual-board refer
 | LM393 comparator | [chips/lm393.en.md](chips/lm393.en.md) |
 | SSD1306 OLED controller | [chips/ssd1306.en.md](chips/ssd1306.en.md) |
 | W25Q64 SPI NOR flash | [chips/w25q64.en.md](chips/w25q64.en.md) |
-| WS2813E addressable RGB LED | [chips/ws2813e.en.md](chips/ws2813e.en.md) |
+| WS2813E addressable RGB LED (legacy/reference) | [chips/ws2813e.en.md](chips/ws2813e.en.md) |
 | 10K NTC B3950 thermistor | [chips/10k-ntc-b3950.en.md](chips/10k-ntc-b3950.en.md) |
 
 ## Module References
@@ -32,7 +32,7 @@ This directory documents the project as a generic STM32F103C8T6 dual-board refer
 | SSD1306 OLED module | [modules/oled-ssd1306-module.en.md](modules/oled-ssd1306-module.en.md) |
 | Active buzzer module | [modules/active-buzzer-module.en.md](modules/active-buzzer-module.en.md) |
 | W25Q64 module | [modules/w25q64-module.en.md](modules/w25q64-module.en.md) |
-| WS2813E RGB module | [modules/ws2813e-rgb-module.en.md](modules/ws2813e-rgb-module.en.md) |
+| WS2813E RGB module (legacy/reference) | [modules/ws2813e-rgb-module.en.md](modules/ws2813e-rgb-module.en.md) |
 | USART3 board link | [modules/usart3-board-link.en.md](modules/usart3-board-link.en.md) |
 
 ## Generic Board Porting Checklist

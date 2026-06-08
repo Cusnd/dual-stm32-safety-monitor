@@ -117,7 +117,7 @@
         \begin{itemize}
           \item 两块 STM32 分布式架构。
           \item USART3 自定义数据帧。
-          \item OLED、RGB、蜂鸣器、按键交互。
+          \item OLED、蜂鸣器、按键交互、JSON 看板。
           \item 可选 W25Q64 历史记录。
         \end{itemize}
       \end{block}
@@ -132,7 +132,7 @@
     \midrule
     稳定采集 & 每秒发帧，MQ/雨量/热敏每帧采样，DHT11 安全间隔刷新 & \code{SensorNode::run()} + 整数滑动平均 \\
     可靠通信 & 串口帧能识别错位和噪声 & \code{AA 55} 帧头 + 长度 + checksum \\
-    本地报警 & 无需云端即可及时提示风险 & RGB LED + 蜂鸣器 + OLED 状态页 \\
+    本地报警 & 无需云端即可及时提示风险 & 蜂鸣器 + OLED 状态页 + Web Serial 看板 \\
     易演示 & 可观察、可断线恢复、可用按键交互 & USART1 日志、NODE LOST、K1/K2 \\
     可扩展 & 后续可加 ACK、心跳、Flash 历史导出 & 协议字段、状态变量、可选 SPI Flash \\
     \bottomrule
@@ -158,11 +158,10 @@
       \begin{block}{板 B：MONITOR}
         \begin{itemize}
           \item OLED：状态与数值显示
-          \item 板载 RGB：状态灯
-          \item WS2813E：外置状态灯
           \item 蜂鸣器：声音报警
           \item K1/K2：切页、静音、阈值档位
           \item W25Q64：可选历史记录
+          \item USART1：JSON Lines 看板输出
         \end{itemize}
       \end{block}
     \end{column}
@@ -178,14 +177,14 @@
     PA9 / PA10 & USB 转串口参考通道 & 保留 USART1 做 \code{printf}/JSON 调试 \\
     PA11 / PA12 & USB Device & 保留，不分配外设 \\
     PA13 / PA14 & SWD 下载调试 & 保留给调试器 \\
-    PA1 / PA2 / PA3 & 板载 RGB LED & 板 B 用于报警状态 \\
+    PA1 / PA2 / PA3 & 旧演示 RGB 引脚 & 当前应用源码未使用 \\
     PA0 / PC13 & 板载 K1 / K2 & 板 B 用于页面、静音、阈值 \\
     PB10 / PB11 & 普通可用 IO / USART3 & 用作双板通信链路 \\
     \bottomrule
   \end{tabularx}
   \vspace{0.5em}
   \begin{alertblock}{关键取舍}
-    不使用 USART2 PA2/PA3，是因为 PA2/PA3 已被板载 RGB 占用；改用 USART3 PB10/PB11 更干净。
+    USART1 保留给日志和 JSON Lines；板间通信固定使用 USART3 PB10/PB11，避免与调试通道混用。
   \end{alertblock}
 \end{frame}
 
@@ -202,10 +201,9 @@
     \node[nodebox, right=18mm of mq135, minimum width=26mm, minimum height=32mm] (a) {Board A\\SENSOR\\采集节点};
     \node[nodebox, right=34mm of a, minimum width=28mm, minimum height=32mm] (b) {Board B\\MONITOR\\显示报警};
     \node[amberbox, right=16mm of b] (oled) {OLED\\PB6/PB7};
-    \node[amberbox, above=of oled] (rgb) {RGB LED\\PA1/2/3};
     \node[amberbox, below=of oled] (buzz) {Buzzer\\PB8};
     \node[amberbox, below=of buzz] (keys) {K1/K2\\PA0/PC13};
-    \node[amberbox, below=of keys] (ergb) {WS2813E\\PA6};
+    \node[amberbox, below=of keys] (json) {JSON Lines\\USART1};
 
     \draw[arrow] (dht.east) -- (a.west);
     \draw[arrow] (mq135.east) -- (a.west);
@@ -215,10 +213,9 @@
     \draw[arrow] (flame.east) -- (a.west);
     \draw[bus] (a.east) -- node[above]{USART3 115200 8N1} node[below]{PB10/PB11 cross} (b.west);
     \draw[arrow] (b.east) -- (oled.west);
-    \draw[arrow] (b.east) |- (rgb.west);
     \draw[arrow] (b.east) |- (buzz.west);
     \draw[arrow] (b.east) |- (keys.west);
-    \draw[arrow] (b.east) |- (ergb.west);
+    \draw[arrow] (b.east) |- (json.west);
   \end{tikzpicture}%
   }
 \end{frame}
@@ -501,7 +498,7 @@
     按键 & 操作 & 系统反馈 \\
     \midrule
     K1 & 短按 & \code{page_} 翻转，OLED 在监测页与参数页之间切换 \\
-    K2 & 短按 & \code{g_mute_until_ms = now + 60000}，蜂鸣器静音 60 秒 \\
+    K2 & 短按 & \code{mute_until_ms_ = now + mute_time_ms}，蜂鸣器静音 60 秒 \\
     K2 & 长按 & \code{threshold_profile_} 递增，切换阈值档位 \\
     \bottomrule
   \end{tabularx}
@@ -544,10 +541,10 @@
     变量 & 写入者 & 读取者与作用 \\
     \midrule
     \code{latest_frame_} & \code{MonitorNode::processRx()} & OLED、报警、Flash 使用的最新合法数据 \\
-    \code{last_rx_ms_} & \code{MonitorNode::processRx()} & \code{MonitorNode::nodeLost()} 判断离线 \\
+    \code{last_rx_ms_} & \code{MonitorNode::processRx()} & \code{evaluateAlarm()} 判断离线 \\
     \code{page_} & \code{MonitorNode::updateButtons()} & OLED 页面选择 \\
     \code{threshold_profile_} & \code{MonitorNode::updateButtons()} & 影响报警阈值与显示参数 \\
-    \code{g_mute_until_ms} & \code{MonitorNode::updateButtons()} & 控制蜂鸣器静音截止时间 \\
+    \code{mute_until_ms_} & \code{MonitorNode::updateButtons()} & 控制蜂鸣器静音截止时间 \\
     \code{flash_.present()} & \code{W25q64FlashLogger::init()} & 控制是否启用日志记录 \\
     \code{rx_buf/head/tail} & ISR / parser & USART3 接收环形缓冲区，负责中断与主循环之间的数据交接 \\
     \bottomrule
@@ -589,7 +586,7 @@
     DHT11 读取失败 & \code{Dht11::read()} & 设置 \code{STATUS_DHT_ERROR}，继续发帧 \\
     串口噪声或错位 & \code{FrameCodec::decode()} & 丢弃坏帧，重新寻找 \code{AA 55} \\
     接收缓冲满 & \code{USART3_IRQHandler()} & 丢弃最新字节，避免 ISR 阻塞 \\
-    板 A 离线 & \code{MonitorNode::nodeLost()} & OLED 显示 NODE LOST，蓝灯慢蜂鸣 \\
+    板 A 离线 & \code{evaluateAlarm()} & OLED 显示 NODE LOST，蜂鸣器慢速提示 \\
     Flash 未接入 & \code{W25q64FlashLogger::init()} & \code{flash_.present()=0}，主功能不受影响 \\
     时钟初始化失败 & \code{SystemClock_Config()} & \code{Error_Handler()} 停机保护 \\
     \bottomrule
@@ -602,7 +599,7 @@
       \begin{block}{单节点测试}
         \begin{itemize}
           \item 板 A：DHT11、MQ135、MQ2、雨量、热敏、火焰模块。
-          \item 板 B：OLED、RGB、WS2813E、蜂鸣器、K1/K2。
+          \item 板 B：OLED、蜂鸣器、K1/K2、W25Q64、JSON Lines。
           \item USART1 日志：\code{115200 8N1}。
         \end{itemize}
       \end{block}
@@ -626,7 +623,7 @@
     \item 连接 USART3：A PB10 到 B PB11，B PB10 到 A PB11，并共地。
     \item 打开两个 USB 转串口，确认板 A \code{[SENSOR]} 日志和板 B \code{[MONITOR] rx v2} 日志。
     \item 展示 OLED 监测页和参数页，按 K1 切换页面。
-    \item 触发烟雾、雨量、热敏或火焰模块，观察状态灯和蜂鸣器变化。
+    \item 触发烟雾、雨量、热敏或火焰模块，观察 OLED、看板风险和蜂鸣器变化。
     \item 短按 K2 展示静音，长按 K2 展示阈值档位切换。
     \item 断开 USART3，展示 \code{NODE LOST} 自动检测。
   \end{enumerate}
@@ -648,9 +645,9 @@ cmake --build --preset MonitorDebug
         \begin{itemize}
           \item \code{README.md} / \code{README.zh-CN.md}
           \item \code{WIRING.md}
-          \item \code{docs/FUNCTION_GUIDE.md}
+          \item \code{docs/FUNCTION_GUIDE.en.md} / \code{.zh-CN.md}
           \item \code{docs/FUNCTION_DESIGN_WALKTHROUGH.*.md}
-          \item \code{docs/PROJECT_STRUCTURE.md}
+          \item \code{docs/PROJECT_STRUCTURE.en.md} / \code{.zh-CN.md}
         \end{itemize}
       \end{block}
     \end{column}
@@ -697,7 +694,7 @@ cmake --build --preset MonitorDebug
 
 \begin{frame}{总结 / Summary}
   \begin{block}{项目成果}
-    本系统完成了双 STM32 节点分工、USART3 数据通信、本地 OLED 显示、RGB/蜂鸣器报警、按键交互和可选 Flash 记录。
+    本系统完成了双 STM32 节点分工、USART3 数据通信、本地 OLED 显示、蜂鸣器报警、按键交互、JSON 看板和可选 Flash 记录。
   \end{block}
   \begin{block}{工程价值}
     项目体现了嵌入式系统中的资源规划、通信协议设计、状态机、协作式调度和异常恢复思路。

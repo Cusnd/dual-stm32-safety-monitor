@@ -21,7 +21,7 @@ After Board B decodes a valid v2 frame, it prints a human-readable log:
 The next line is machine-readable JSON:
 
 ```json
-{"type":"sensor","schemaVersion":2,"seq":31,"tickMs":123456,"tempC":26,"humidityPct":54,"mq135Raw":1020,"mq2Raw":860,"rainRaw":980,"thermRaw":1660,"thermC10":325,"rainWet":0,"thermHot":0,"flame":0,"status":0,"alarm":"normal","thresholdProfile":0,"mute":0,"flashReady":1,"flashRecords":42,"externalRgb":1}
+{"type":"sensor","schemaVersion":2,"seq":31,"tickMs":123456,"tempC":26,"humidityPct":54,"mq135Raw":1020,"mq2Raw":860,"rainRaw":980,"thermRaw":1660,"thermC10":325,"rainWet":0,"thermHot":0,"flame":0,"status":0,"alarm":"normal","thresholdProfile":0,"mute":0,"flashReady":1,"flashRecords":42,"externalRgb":0}
 ```
 
 | Field | Meaning |
@@ -37,14 +37,15 @@ The next line is machine-readable JSON:
 | `alarm` | `normal`, `warn`, `danger`, or `node_lost` |
 | `thresholdProfile`, `mute` | Active threshold profile and buzzer mute state |
 | `flashReady`, `flashRecords` | W25Q64 availability and cumulative record count |
-| `externalRgb` | Whether the WS2813E driver initialized |
+| `externalRgb` | Legacy placeholder emitted by current firmware; not required by the dashboard and not an active WS2813/RGB output |
 
-The parser accepts v1 and v2. v1 records show missing v2-only values as `--`.
+The parser accepts v1 and v2. v1 records show missing v2-only values as `--`. Extra placeholder fields such as `externalRgb` may be ignored by the frontend.
 
 ## Running
 
 ```powershell
-python -m http.server 5173 -d frontend
+npm --prefix frontend install
+npm --prefix frontend run dev
 ```
 
 Open `http://localhost:5173`, connect to Board B at `115200 8N1`, or use replay mode.
@@ -53,13 +54,23 @@ Open `http://localhost:5173`, connect to Board B at `115200 8N1`, or use replay 
 
 - Only lines starting with `{` are parsed as JSON; `[MONITOR]` and `[SENSOR]` logs are ignored.
 - Dashboard cards show temperature, humidity, MQ135, MQ2, rain, thermistor, flame, and alarm.
-- Trend chart keeps the latest 80 valid records and draws T/H/MQ2/MQ135/RAIN/thermistor series.
-- AI Insights show a DeepSeek/local hybrid provider by default; local rules still cover MQ, rain, thermistor, flame, DHT, stale data, and node-lost conditions.
-- User Chat sends the current snapshot and recent history to the backend `/api/ai/chat` proxy. If the backend is unavailable, the frontend falls back to local safety, alarm, MQ2, rain, thermistor, and troubleshooting answers.
+- Trend chart keeps the latest 80 valid records with ECharts legend, tooltip, zoom, sensor selection, and recent-value history.
+- AI Insights show a DeepSeek direct/local hybrid provider by default; local rules still cover MQ, rain, thermistor, flame, DHT, stale data, and node-lost conditions.
+- User Chat uses the DeepSeek API key entered in the page to call the official Chat Completions endpoint directly. If the direct network call fails, the frontend falls back to local safety, alarm, MQ2, rain, thermistor, and troubleshooting answers.
 
 ## AI Integration
 
-The frontend does not call DeepSeek directly and does not store an API key. Keep the DeepSeek key only in a local or cloud backend environment variable. The browser calls the proxy:
+The default mode calls DeepSeek's official Chat Completions endpoint directly from the browser. The user-entered API key is kept only in this browser tab's `sessionStorage`; it is not written to the repository, URL, a local file, or `localStorage`, and it must be entered again after closing the tab.
+
+```text
+frontend DirectDeepSeekProvider
+        -> Authorization: Bearer <user-entered key>
+        -> POST https://api.deepseek.com/chat/completions
+```
+
+The direct request body contains only `model`, prompted `messages` with the sensor snapshot, `stream`, and `temperature`; the API key is never placed in the JSON body. The default model is `deepseek-v4-flash`; the default direct endpoint is `https://api.deepseek.com/chat/completions`.
+
+For public deployments, prefer the proxy mode because any browser-direct approach exposes the current user's key to the browser runtime. Optional proxy flow:
 
 ```text
 frontend DeepSeekProvider
@@ -68,7 +79,7 @@ frontend DeepSeekProvider
         -> DeepSeek-compatible API
 ```
 
-The default request body includes `model`, prompted `messages`, raw `conversation`, compact `snapshot`, `locale`, and `requestType: "chat"`. The default model is `deepseek-v4-flash`; the default proxy endpoint is `/api/ai/chat`.
+Proxy requests include `model`, prompted `messages`, raw `conversation`, compact `snapshot`, `locale`, and `requestType: "chat"`.
 
 Optional runtime configuration:
 
@@ -76,15 +87,16 @@ Optional runtime configuration:
 <script>
   window.SAFETY_MONITOR_CONFIG = {
     ai: {
-      mode: "deepseek",
-      endpoint: "/api/ai/chat",
+      mode: "direct",
+      directEndpoint: "https://api.deepseek.com/chat/completions",
+      proxyEndpoint: "/api/ai/chat",
       model: "deepseek-v4-flash"
     }
   };
 </script>
 ```
 
-Temporary URL overrides are also supported: `?ai=local`, `?ai=deepseek`, `?aiEndpoint=/api/ai/chat`, and `?aiModel=deepseek-v4-flash`. The AI mode button switches between DeepSeek and local rules and persists the choice in browser local storage.
+Temporary URL overrides are also supported: `?ai=direct`, `?ai=local`, `?ai=proxy`, `?aiDirectEndpoint=https://api.deepseek.com/chat/completions`, `?aiProxyEndpoint=/api/ai/chat`, and `?aiModel=deepseek-v4-flash`. The AI mode button switches between direct and local rules and persists the mode choice in browser local storage.
 
 ## Build Relationship
 
