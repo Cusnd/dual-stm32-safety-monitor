@@ -1,6 +1,6 @@
 # Thermistor Module
 
-[Hardware index](../index.en.md) | [中文](thermistor-module.zh-CN.md) | [10K NTC](../chips/10k-ntc-b3950.en.md) | [LM393](../chips/lm393.en.md)
+[Hardware index](../index.en.md) | [Chinese](thermistor-module.zh-CN.md) | [10K NTC](../chips/10k-ntc-b3950.en.md) | [LM393](../chips/lm393.en.md)
 
 ## Role
 
@@ -32,8 +32,9 @@ AO + potentiometer -> LM393 -> DO
 ## Firmware Mapping
 
 - `Thermistor_AdcToC10()` converts AO to 0.1 deg C.
-- Warning/danger defaults: 45.0 deg C / 70.0 deg C.
-- JSON fields: `thermRaw`, `thermC10`, `thermHot`; status bits: `bit1`, `bit3`.
+- Board B uses five adjustable thermistor warning/danger levels; the default level shown as `3/5` is 45.0 deg C / 70.0 deg C.
+- PB0 can select thermistor on the monitor threshold page, and PB1 cycles `thresholdThermLevel` through `0..4`.
+- JSON fields: `thermRaw`, `thermC10`, `thermHot`, `thresholdThermLevel`, `thresholdThermWarnC10`, `thresholdThermDangerC10`; status bits: `bit1`, `bit3`.
 
 ## Test And Calibration
 

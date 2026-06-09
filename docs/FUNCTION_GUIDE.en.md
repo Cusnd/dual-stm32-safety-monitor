@@ -59,31 +59,36 @@ AA 55 LEN VER TEMP HUMI MQ135 MQ2 RAIN THERM_ADC THERM_C10 FLAME RAIN_WET THERM_
 
 | Function or class | Responsibility |
 |---|---|
-| `MonitorNode::init()` | Resets monitor state, initializes buzzer, OLED bus/controller, W25Q64, and prints boot status. |
+| `MonitorNode::init()` | Resets monitor state, initializes buzzer, PB0/PB1 threshold keys, OLED bus/controller, W25Q64, and prints boot status. |
 | `MonitorNode::run()` | Cooperative loop: process RX, scan buttons, advance flash task, evaluate alarm, update outputs, refresh OLED, and schedule flash logs. |
 | `MonitorNode::processRx()` | Pulls USART3 bytes from `hal::readUsartByte()`, feeds `FrameStreamDecoder`, updates `latest_frame_`, and prints JSON schema v2. |
-| `MonitorNode::updateButtons()` | K1 toggles OLED page; K2 short press mutes buzzer for 60 s; K2 long press cycles threshold profile. |
+| `MonitorNode::updateButtons()` | K1 toggles OLED page; K2 short press mutes the buzzer for 60 s; PB0 selects MQ135/MQ2/rain/thermistor; PB1 cycles the selected threshold through five levels. |
+| `MonitorNode::pressedEdge()` | Debounces the active-low external threshold keys before generating a single press edge. |
+| `thresholdsFromLevels()` | Builds the active `AlarmThresholds` from four independent 0..4 sensor levels. |
+| `compatibleThresholdProfile()` | Keeps the legacy JSON `thresholdProfile` field: `0` default, `1` old sensitive, `2` old loose, `255` mixed/custom. |
 | `MonitorNode::updateAlarm()` | Drives buzzer patterns: fast danger beep, slow node-lost beep, muted silence, warning/normal silence. |
 | `MonitorNode::updateDisplay()` | Uses `formatMonitorDisplay()` and writes four OLED lines. |
-| `MonitorNode::printFrontendJson()` | Emits one browser-friendly JSON Line with schema v2 fields, alarm state text, and the legacy `externalRgb` placeholder. |
+| `MonitorNode::printFrontendJson()` | Emits one browser-friendly JSON Line with schema v2 fields, per-sensor threshold levels, actual threshold values, alarm state text, and the legacy `externalRgb` placeholder. |
 
 ## Alarm, Display, And Board I/O
 
 | Function or class | Responsibility |
 |---|---|
-| `evaluateAlarm()` | Computes waiting, lost, danger, warn, and muted flags from the latest frame, timeouts, mute window, and threshold profile. |
+| `evaluateAlarm()` | Computes waiting, lost, danger, warn, and muted flags from the latest frame, timeouts, mute window, and active per-sensor thresholds. |
 | `alarmStateString()` | Converts `AlarmState` to JSON strings: `normal`, `warn`, `danger`, `waiting`, or `node_lost`. |
-| `formatMonitorDisplay()` | Formats page 0 live readings and page 1 threshold/log state into four fixed OLED lines. |
+| `formatMonitorDisplay()` | Formats page 0 live readings and page 1 selected threshold sensor, level `1/5..5/5`, active values, and flash state. |
 | `Buzzer::init()` / `Buzzer::set()` | Configure and drive the active-high buzzer on `PB8`. |
+| `Buttons::init()` | Configures external threshold keys on `PB0/PB1` as internal pull-up inputs, active-low to GND. |
 | `Buttons::key1Pressed()` / `Buttons::key2Pressed()` | Read active-high K1/K2 board keys. |
+| `Buttons::thresholdSelectPressed()` / `Buttons::thresholdLevelPressed()` | Read active-low PB0/PB1 threshold keys. |
 | `OledDisplay::initBus()` / `initController()` / `clear()` / `printLine()` | Small SSD1306 software-I2C driver for local monitor display. |
 
 ## Optional Flash Logger
 
 | Function or class | Responsibility |
 |---|---|
-| `W25q64FlashLogger::init()` | Initializes SPI2, reads JEDEC ID, detects compatible W25Q64 parts, and restores cursor metadata. |
-| `W25q64FlashLogger::logFrame()` | Builds one pending 32-byte v2 record with frame data, alarm state, threshold profile, mute flag, tick, record count, and CRC. |
+| `W25q64FlashLogger::init()` | Calls `MX_SPI2_Init()`, uses HAL SPI to read JEDEC ID, detects compatible W25Q64 parts, and restores cursor metadata. |
+| `W25q64FlashLogger::logFrame()` | Builds one pending 32-byte v2 record with frame data, alarm state, tick, four packed threshold levels plus mute bit, record count, and CRC. |
 | `W25q64FlashLogger::process()` | Non-blocking state machine for sector erase, page program, metadata erase, and metadata program tasks. |
 | `W25q64FlashLogger::present()` | Reports whether logging is available. |
 | `W25q64FlashLogger::recordCount()` | Returns the cumulative record counter shown on OLED and JSON. |
@@ -93,7 +98,7 @@ AA 55 LEN VER TEMP HUMI MQ135 MQ2 RAIN THERM_ADC THERM_C10 FLAME RAIN_WET THERM_
 | Module | Responsibility |
 |---|---|
 | `frontend/src/parser.ts` | Parses MONITOR JSON Lines, validates schema v1/v2, and exposes localizable parser error codes. |
-| `frontend/src/analysis.ts` | Mirrors threshold profiles and builds local risk summaries for dashboard and AI fallback. |
+| `frontend/src/analysis.ts` | Uses live threshold fields when present, falls back to legacy `thresholdProfile`, and builds local risk summaries for dashboard and AI fallback. |
 | `frontend/src/aiProvider.ts` | Provides local-rule chat plus DeepSeek direct/proxy providers with localized prompts and fallback replies. |
 | `frontend/src/hooks/useDashboard.ts` | Owns Web Serial/replay source selection, history, event log, AI mode, and chat state. |
 | `frontend/src/components/TrendChart.tsx` | Renders the ECharts trend view with legend, zoom, sensor selection, and history values. |
@@ -103,6 +108,6 @@ AA 55 LEN VER TEMP HUMI MQ135 MQ2 RAIN THERM_ADC THERM_C10 FLAME RAIN_WET THERM_
 | Change | Main files |
 |---|---|
 | Add a sensor value | `SensorFrame`, `FrameCodec`, `SensorNode::run()`, `MonitorNode::printFrontendJson()`, frontend parser/docs |
-| Change alarm thresholds | `threshold_profiles` in `App/Config.hpp` and mirrored frontend profiles in `frontend/src/analysis.ts` |
+| Change alarm thresholds | Level arrays and `thresholdsFromLevels()` in `App/Config.hpp`, plus frontend fallback/defaults in `frontend/src/analysis.ts` |
 | Change OLED text | `formatMonitorDisplay()` |
-| Change W25Q64 record layout | `W25q64FlashLogger::logFrame()`, CRC/load metadata policy, docs, and any future export tooling |
+| Change W25Q64 record layout or SPI2 setup | `W25q64FlashLogger::logFrame()`, `Core/Src/spi.c`, SPI MSP setup, CRC/load metadata policy, docs, and any future export tooling |

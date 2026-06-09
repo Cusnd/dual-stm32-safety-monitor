@@ -32,8 +32,9 @@ AO + 电位器 -> LM393 -> 可选 DO
 ## 固件映射
 
 - `hal::readAdc1Channel(5)` 采样 MQ2。
-- `smoke_warn` 和 `smoke_danger` 来自当前阈值档位。
-- JSON 字段：`mq2Raw`。
+- 板 B 使用 5 档可调 MQ2 阈值；默认显示为 `3/5`，预警 `1800`、危险 `2800`。
+- PB0 可在 MONITOR 阈值页选择 MQ2，PB1 让 `thresholdSmokeLevel` 在 `0..4` 间循环。
+- JSON 字段：`mq2Raw`、`thresholdSmokeLevel`、`thresholdSmokeWarn`、`thresholdSmokeDanger`。
 
 ## 测试与故障
 

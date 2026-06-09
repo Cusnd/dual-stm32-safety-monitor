@@ -17,7 +17,7 @@
   每秒采集 DHT11、MQ135、MQ2、雨量、热敏和火焰输入，平滑模拟量，并通过 USART3 发送协议 v2 二进制帧。
 
 - **板 B：MONITOR 显示报警节点**  
-  使用流式解码器恢复 USART3 数据帧，评估预警/危险/节点离线状态，刷新 SSD1306 OLED 页面，驱动蜂鸣器，处理 K1/K2，可选写入 W25Q64 固定记录，并通过 USART1 输出 JSON Lines。
+  使用流式解码器恢复 USART3 数据帧，评估预警/危险/节点离线状态，刷新 SSD1306 OLED 页面，驱动蜂鸣器，处理 K1/K2 和外接阈值按键，可选写入 W25Q64 固定记录，并通过 USART1 输出 JSON Lines。
 
 ```mermaid
 flowchart LR
@@ -31,6 +31,7 @@ flowchart LR
   B --> OLED[SSD1306 OLED<br/>PB6/PB7]
   B --> Buzz[蜂鸣器<br/>PB8]
   B --> Keys[K1/K2<br/>PA0/PC13]
+  B --> ThresholdKeys[阈值按键<br/>PB0/PB1]
   B -. 可选 .-> Flash[W25Q64<br/>SPI2 环形日志]
   B -- USART1 JSON Lines --> Web[Web Serial 看板]
 ```
@@ -40,8 +41,8 @@ flowchart LR
 - `FrameCodec` 定义 22 字节协议 v2 数据帧；`FrameStreamDecoder` 能在噪声、重叠帧头和坏校验后重新同步。
 - `AlarmEvaluator` 集中处理报警优先级：危险、等待、节点离线、预警、正常。
 - `DisplayFormatter` 生成两页 OLED 内容：实时读数页和阈值/日志状态页。
-- `W25q64FlashLogger` 是可选且非阻塞的记录器：sector 0 保存游标元数据，sector 1 到 8 MB 末尾保存 32 字节环形记录。
-- MONITOR 输出 JSON schema v2，包含雨量、热敏、阈值档位、静音状态、Flash 是否可用和 Flash 记录数。
+- `W25q64FlashLogger` 是可选且非阻塞的记录器：MONITOR 通过 `MX_SPI2_Init()` 和 HAL SPI 初始化 W25Q64，sector 0 保存游标元数据，sector 1 到 8 MB 末尾保存 32 字节环形记录。
+- MONITOR 输出 JSON schema v2，包含雨量、热敏、逐传感器阈值档位、实际阈值、静音状态、Flash 是否可用和 Flash 记录数。
 - 当前构建已经移除 WS2813/RGB 驱动文件。硬件参考页可以保留这些器件作为 legacy 或扩展说明，但它们不是现役固件输出。
 
 ## 参考引脚映射
@@ -58,6 +59,7 @@ flowchart LR
 | MONITOR | OLED SCL/SDA | `PB6 / PB7`，软件 I2C |
 | MONITOR | 蜂鸣器 | `PB8`，高电平响 |
 | MONITOR | K1/K2 | `PA0 / PC13`，参考板上按下为高电平 |
+| MONITOR | 外接阈值按键 | `PB0` 选择传感器，`PB1` 调整 5 档；内部上拉，按下接 `GND` |
 | MONITOR 可选 | W25Q64 | `PB12 CS`，`PB13 SCK`，`PB14 MISO`，`PB15 MOSI` |
 | 双板 | 板间通信 | USART3 `PB10/PB11`，TX/RX 交叉，共地 |
 | 双板 | 调试/JSON 串口 | USART1 `PA9/PA10`，`115200 8N1` |
@@ -122,15 +124,16 @@ AA 55 LEN VER TEMP HUMI MQ135 MQ2 RAIN THERM_ADC THERM_C10 FLAME RAIN_WET THERM_
 | `STATUS` | `bit0=DHT错误`，`bit1=热敏DO高温`，`bit2=雨量湿态`，`bit3=热敏ADC异常` |
 | `CHECKSUM` | `LEN + payload bytes` 的低 8 位 |
 
-MONITOR 会把合法二进制帧转换成 JSON schema v2。当前必需的 v2 扩展字段是 `rainRaw`、`thermRaw`、`thermC10`、`rainWet`、`thermHot` 和 `flashRecords`。固件可能继续输出 `externalRgb` 作为 legacy placeholder；看板不能把它当作必需的现役输出。
+MONITOR 会把合法二进制帧转换成 JSON schema v2。当前必需的 v2 扩展字段是 `rainRaw`、`thermRaw`、`thermC10`、`rainWet`、`thermHot` 和 `flashRecords`。新固件还输出 `selectedThresholdSensor`、四个 `threshold*Level` 字段和六个实际阈值字段；旧日志没有这些字段时，看板会回退到 `thresholdProfile`。固件可能继续输出 `externalRgb` 作为 legacy placeholder；看板不能把它当作必需的现役输出。
 
 ## 演示检查
 
 1. 将 SENSOR 镜像烧录到板 A，将 MONITOR 镜像烧录到板 B。
 2. USART3 TX/RX 交叉连接，并连接公共 GND。
 3. 打开板 B 调试串口，参数 `115200 8N1`；如果板 A 也有调试口，也一起打开。
-4. 确认板 B 打印 `[MONITOR] rx v2` 和 JSON Lines。
-5. 验证 `normal`、`warn`、`danger` 以及前端 stale/node-lost 在 OLED、蜂鸣器、看板状态和 W25Q64 记录数上的表现。
+4. 确认板 B 打印 `[MONITOR] ... flash=ok` 或 `flash=none`，随后打印 `[MONITOR] rx v2` 和 JSON Lines。
+5. 将外接阈值按键接到 `PB0/PB1` 和 `GND`，验证 PB0 循环选择 MQ135/MQ2/雨量/热敏，PB1 循环 5 个档位。
+6. 验证 `normal`、`warn`、`danger` 以及前端 stale/node-lost 在 OLED、蜂鸣器、看板状态和 W25Q64 记录数上的表现。
 
 ## 注意事项
 

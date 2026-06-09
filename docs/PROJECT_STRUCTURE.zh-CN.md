@@ -15,11 +15,11 @@
 │   ├── Protocol/             SensorFrame、FrameCodec、FrameStreamDecoder
 │   ├── SensorNode.*          板 A SENSOR 角色
 │   └── MonitorNode.*         板 B MONITOR 角色
-├── Core/                     STM32CubeMX 风格启动、HAL 入口、GPIO、IRQ glue
-├── Drivers/                  STM32 HAL 和 CMSIS 厂商源码
+├── Core/                     STM32CubeMX 风格启动、HAL 入口、GPIO/SPI、IRQ glue
+├── Drivers/                  STM32 HAL 和 CMSIS 厂商源码，包含 SPI HAL
 ├── cmake/                    ARM 工具链文件和 ST-LINK/OpenOCD 配置
 ├── docs/                     硬件、构建、前端、函数和设计文档
-├── frontend/                 静态 Web Serial 看板
+├── frontend/                 Vite React Web Serial 看板
 ├── tests/                    原生协议/解码器测试
 ├── CMakeLists.txt            共享固件构建和按角色选择源码
 ├── CMakePresets.json         CLion 与命令行 preset
@@ -36,7 +36,7 @@
 | 采集角色 | `App/SensorNode.*`、`App/Drivers/Dht11.*` | 采样 DHT11、MQ135、MQ2、雨量、热敏和火焰，并发送协议 v2 帧。 |
 | 显示报警角色 | `App/MonitorNode.*`、`App/Monitor/*`、`App/Drivers/OledDisplay.*`、`App/Drivers/BoardIo.*`、`App/Drivers/W25q64FlashLogger.*` | 解码数据帧、评估报警、刷新 OLED、驱动蜂鸣器/按键、可选记录 Flash、输出 JSON Lines。 |
 | 协议 | `App/Protocol/SensorFrame.hpp`、`FrameCodec.*`、`FrameStreamDecoder.*` | 定义线缆格式，以及噪声或坏帧后的流式恢复。 |
-| 硬件辅助 | `App/Hal/Hardware.*`、`App/BoardPins.hpp`、`Core/Src/gpio.c`、`Core/Inc/main.h` | UART、ADC、延时、环形缓冲和参考引脚定义。 |
+| 硬件辅助 | `App/Hal/Hardware.*`、`App/BoardPins.hpp`、`Core/Src/gpio.c`、`Core/Src/spi.c`、`Core/Inc/main.h` | UART、ADC、延时、环形缓冲、SPI2 初始化和参考引脚定义。 |
 
 当前 CMake 源码列表不再编译 WS2813/RGB 驱动。旧 WS2813 硬件资料只应视为 legacy/reference，除非明确恢复固件支持。
 
@@ -113,5 +113,5 @@ npm test
 | 调整报警行为 | `App/Config.hpp`、`App/Monitor/AlarmEvaluator.*`、`frontend/src/analysis.ts` |
 | 修改 OLED 页面 | `App/Monitor/DisplayFormatter.*` |
 | 修改蜂鸣器或按键 | `App/Drivers/BoardIo.*`、`MonitorNode::updateButtons()`、`MonitorNode::updateAlarm()` |
-| 修改 Flash 日志行为 | `App/Drivers/W25q64FlashLogger.*` |
+| 修改 Flash 日志行为 | `App/Drivers/W25q64FlashLogger.*`、`Core/Src/spi.c`、`Core/Src/stm32f1xx_hal_msp.c` |
 | 修改看板文本 | `frontend/src/i18n.ts` 和 `frontend/src/components/` 下的 React 组件 |

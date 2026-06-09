@@ -21,7 +21,8 @@ void formatMonitorDisplay(
   const SensorFrame &frame,
   const AlarmEvaluation &alarm,
   uint8_t page,
-  uint8_t threshold_profile,
+  uint8_t selected_threshold_sensor,
+  const ThresholdLevels &levels,
   const AlarmThresholds &thresholds,
   bool flash_present,
   uint32_t flash_records);

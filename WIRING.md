@@ -2,9 +2,9 @@
 
 [README](README.md) / [中文 README](README.zh-CN.md) | [Hardware reference](docs/hardware/index.en.md) / [硬件资料](docs/hardware/index.zh-CN.md)
 
-This bilingual guide describes the current reference pin map for the active firmware. If you move to another STM32F103C8T6 board, keep the signal roles and electrical limits, or update firmware and docs together.
+This bilingual guide describes the current reference pin map for the active firmware. If you move to another STM32F103C8T6 board (This project uses the Wildfire STM32F103C8T6.), keep the signal roles and electrical limits, or update firmware and docs together.
 
-本文档以中英双语说明当前现役固件的参考引脚映射。若迁移到其他 STM32F103C8T6 板卡，请保持信号角色和电气限制一致；若改脚，需要同步修改固件和文档。
+本文档以中英双语说明当前现役固件的参考引脚映射。若迁移到其他 STM32F103C8T6 板卡（本项目使用野火STM32F103C8T6），请保持信号角色和电气限制一致；若改脚，需要同步修改固件和文档。
 
 ## Board-Porting Checklist / 板卡移植检查表
 
@@ -26,6 +26,7 @@ This bilingual guide describes the current reference pin map for the active firm
 | `PA11/PA12` | USB DM/DP reserved / USB DM/DP 保留 | Do not reuse when USB is populated / 接了 USB 时不复用 |
 | `PA13/PA14` | SWD / SWD 下载调试 | Keep free / 保留 |
 | `PA0/PC13` | K1/K2 on MONITOR / MONITOR 的 K1/K2 | Reference board uses external pull-down and active-high press / 参考板外部下拉，按下为高电平 |
+| `PB0/PB1` | External threshold keys on MONITOR / MONITOR 外接阈值按键 | Internal pull-up, active-low to GND; PB0 selects sensor, PB1 changes level / 内部上拉，按下接 GND 为低电平；PB0 选择传感器，PB1 调整档位 |
 | `PA1/PA2/PA3` | Not used by current app sources / 当前应用源码未使用 | Older demos used board RGB here; do not document it as active output unless you restore firmware support / 旧演示曾用于板载 RGB；除非恢复固件支持，否则不要作为当前输出说明 |
 | `PA6` | SENSOR rain ADC only / SENSOR 雨量 ADC | Current MONITOR image does not drive WS2813 on this pin / 当前 MONITOR 镜像不再用该脚驱动 WS2813 |
 
@@ -69,7 +70,9 @@ Serial settings: `115200 8N1`. The active protocol is a 22-byte v2 binary frame 
 | Active buzzer / 有源蜂鸣器 | SIG | `PB8` | Active-high; danger beeps fast, node-lost beeps slowly unless muted / 高电平响；危险快速鸣叫，节点离线慢速提示，静音时关闭 |
 | Active buzzer / 有源蜂鸣器 | VCC/GND | `3V3/GND` | Confirm module voltage rating / 确认模块额定电压 |
 | K1 | on-board key | `PA0` | Press to switch OLED page / 按下切换 OLED 页面 |
-| K2 | on-board key | `PC13` | Short press mutes buzzer for 60 s; long press changes threshold profile / 短按蜂鸣器静音 60 秒；长按切换阈值档位 |
+| K2 | on-board key | `PC13` | Short press mutes buzzer for 60 s / 短按蜂鸣器静音 60 秒 |
+| Threshold sensor key / 阈值传感器选择键 | External button / 外接按钮 | `PB0` | Internal pull-up, press to GND; cycles MQ135, MQ2, rain, thermistor / 内部上拉，按下接 GND；循环选择 MQ135、MQ2、雨量、热敏 |
+| Threshold level key / 阈值档位键 | External button / 外接按钮 | `PB1` | Internal pull-up, press to GND; cycles the selected sensor through five levels / 内部上拉，按下接 GND；当前传感器在 5 个档位间循环 |
 
 ## Optional W25Q64 / 可选 W25Q64
 

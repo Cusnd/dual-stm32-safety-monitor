@@ -1,6 +1,6 @@
 # Board And Chip Reference
 
-[README](../README.md) | [中文](BOARD_AND_CHIP_REFERENCE.zh-CN.md) | [Hardware index](hardware/index.en.md) | [Wiring](../WIRING.md)
+[README](../README.md) | [Chinese](BOARD_AND_CHIP_REFERENCE.zh-CN.md) | [Hardware index](hardware/index.en.md) | [Wiring](../WIRING.md)
 
 This document is now a board-level index for the generic STM32F103C8T6 dual-board reference design. Detailed chip notes live under `docs/hardware/chips/`.
 

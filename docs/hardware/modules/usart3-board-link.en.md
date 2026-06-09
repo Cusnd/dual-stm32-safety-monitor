@@ -1,6 +1,6 @@
 # USART3 Board-to-Board Link
 
-[Hardware index](../index.en.md) | [中文](usart3-board-link.zh-CN.md) | [STM32F103C8T6](../chips/stm32f103c8t6.en.md)
+[Hardware index](../index.en.md) | [Chinese](usart3-board-link.zh-CN.md) | [STM32F103C8T6](../chips/stm32f103c8t6.en.md)
 
 ## Role
 

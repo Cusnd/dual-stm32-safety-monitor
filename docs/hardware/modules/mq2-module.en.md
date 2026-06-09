@@ -1,6 +1,6 @@
 # MQ2 Module
 
-[Hardware index](../index.en.md) | [中文](mq2-module.zh-CN.md) | [MQ2 element](../chips/mq2.en.md) | [LM393](../chips/lm393.en.md)
+[Hardware index](../index.en.md) | [Chinese](mq2-module.zh-CN.md) | [MQ2 element](../chips/mq2.en.md) | [LM393](../chips/lm393.en.md)
 
 ## Role
 
@@ -32,8 +32,9 @@ AO + potentiometer -> LM393 -> optional DO
 ## Firmware Mapping
 
 - `hal::readAdc1Channel(5)` samples MQ2.
-- `smoke_warn` and `smoke_danger` thresholds come from the active profile.
-- JSON field: `mq2Raw`.
+- Board B uses five adjustable MQ2 levels; the default level shown as `3/5` is warning `1800` and danger `2800`.
+- PB0 can select MQ2 on the monitor threshold page, and PB1 cycles `thresholdSmokeLevel` through `0..4`.
+- JSON fields: `mq2Raw`, `thresholdSmokeLevel`, `thresholdSmokeWarn`, `thresholdSmokeDanger`.
 
 ## Test And Faults
 

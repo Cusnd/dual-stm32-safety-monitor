@@ -93,7 +93,7 @@ cmake --build --preset MonitorDebug
 | `CMakePresets.json` | 给 CLion 和命令行提供 `SensorDebug`、`MonitorDebug` 等构建配置 |
 | `CMakeLists.txt` | 定义固件目标、角色选择、输出文件名、HEX/BIN 生成 |
 | `cmake/gcc-arm-none-eabi.cmake` | 指定 ARM GCC、Cortex-M3 编译参数、链接脚本 |
-| `cmake/stm32cubemx/CMakeLists.txt` | 引入 CubeMX 生成源码、HAL 和 CMSIS 头文件 |
+| `cmake/stm32cubemx/CMakeLists.txt` | 引入 CubeMX 生成源码、HAL、CMSIS 头文件、SPI2 初始化和 `stm32f1xx_hal_spi.c` |
 | `STM32F103XX_FLASH.ld` | 定义 STM32F103C8T6 的 64 KB Flash 和 20 KB RAM |
 
 ## 6. 角色宏如何生效
@@ -216,6 +216,7 @@ ST-LINK NRST -> NRST
 | 生成的是显示节点，不是采集节点 | 选了 `Debug` 或 `MonitorDebug` | 板 A 必须选 `SensorDebug` |
 | 板 B 一直 `NODE LOST` | 板 A 没运行 SENSOR 固件，或 USART3 接线错误 | 确认板 A 烧 `Env-Monitor_sensor.hex`，板 B 烧 `Env-Monitor_monitor.hex` |
 | OLED 不显示 | 只构建了固件但未烧录，或 OLED 接线/供电错误 | 确认烧录 Monitor 固件，并检查 `PB6/PB7/3V3/GND` |
+| 板 B 打印 `flash=none` | W25Q64 未通过 SPI2 检测到 | 检查 `PB12` CS、`PB13/PB14/PB15` SPI2 接线、3.3 V 供电、共地和 WP/HOLD 上拉 |
 | 命令行手写 CMake 时工具链路径异常 | Windows 路径和反斜杠转义问题 | 优先用 CLion preset 或 `cmake --preset SensorDebug` |
 
 ## 10. 不需要使用 Keil

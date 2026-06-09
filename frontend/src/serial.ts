@@ -1,24 +1,49 @@
+import type { SerialSourceCallbacks } from "./types";
+
+interface SerialPortLike {
+  readable: ReadableStream<Uint8Array> | null;
+  open(options: {
+    baudRate: number;
+    dataBits: number;
+    stopBits: number;
+    parity: "none";
+    flowControl: "none";
+  }): Promise<void>;
+  close(): Promise<void>;
+}
+
+interface SerialNavigator extends Navigator {
+  serial?: {
+    requestPort(): Promise<SerialPortLike>;
+  };
+}
+
 export class WebSerialSource {
-  constructor({ onLine, onStatus, onError }) {
+  private onLine?: (line: string) => void;
+  private onStatus?: SerialSourceCallbacks["onStatus"];
+  private onError?: SerialSourceCallbacks["onError"];
+  private port: SerialPortLike | null = null;
+  private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  private keepReading = false;
+  private buffer = "";
+
+  constructor({ onLine, onStatus, onError }: SerialSourceCallbacks) {
     this.onLine = onLine;
     this.onStatus = onStatus;
     this.onError = onError;
-    this.port = null;
-    this.reader = null;
-    this.keepReading = false;
-    this.buffer = "";
   }
 
-  static isSupported() {
+  static isSupported(): boolean {
     return typeof navigator !== "undefined" && "serial" in navigator;
   }
 
-  async connect() {
+  async connect(): Promise<void> {
     if (!WebSerialSource.isSupported()) {
       throw new Error("Web Serial is not supported by this browser");
     }
 
-    this.port = await navigator.serial.requestPort();
+    const serialNavigator = navigator as SerialNavigator;
+    this.port = await serialNavigator.serial!.requestPort();
     await this.port.open({
       baudRate: 115200,
       dataBits: 8,
@@ -29,10 +54,10 @@ export class WebSerialSource {
 
     this.keepReading = true;
     this.onStatus?.("connected");
-    this.readLoop();
+    void this.readLoop();
   }
 
-  async disconnect() {
+  async disconnect(): Promise<void> {
     this.keepReading = false;
     if (this.reader) {
       try {
@@ -56,7 +81,7 @@ export class WebSerialSource {
     this.onStatus?.("disconnected");
   }
 
-  async readLoop() {
+  private async readLoop(): Promise<void> {
     const decoder = new TextDecoder();
 
     try {
@@ -83,7 +108,7 @@ export class WebSerialSource {
     }
   }
 
-  pushText(chunk) {
+  pushText(chunk: string): void {
     this.buffer += chunk;
     const lines = this.buffer.split(/\r?\n/);
     this.buffer = lines.pop() ?? "";
@@ -92,3 +117,4 @@ export class WebSerialSource {
     }
   }
 }
+

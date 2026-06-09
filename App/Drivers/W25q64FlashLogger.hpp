@@ -11,7 +11,7 @@ class W25q64FlashLogger
 {
 public:
   void init();
-  bool logFrame(const SensorFrame &frame, AlarmState state, uint8_t threshold_profile, bool muted);
+  bool logFrame(const SensorFrame &frame, AlarmState state, const ThresholdLevels &levels, bool muted);
   void process();
   bool present() const;
   bool busy() const;

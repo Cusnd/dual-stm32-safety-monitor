@@ -821,6 +821,7 @@
                 <li><span>OLED</span><code>PB6/PB7</code></li>
                 <li><span>Buzzer</span><code>PB8</code></li>
                 <li><span>K1 / K2</span><code>PA0/PC13</code></li>
+                <li><span>Threshold keys</span><code>PB0/PB1</code></li>
                 <li><span>W25Q64</span><code>SPI2</code></li>
               </ul>
             </div>
@@ -871,7 +872,7 @@
         <article class="card">
           <div class="icon">B</div>
           <h3>监控节点专注输出</h3>
-          <p>MONITOR 流式解析串口帧，刷新 OLED，驱动蜂鸣器，并处理 K1/K2 页面、静音和阈值档位操作。</p>
+          <p>MONITOR 流式解析串口帧，刷新 OLED，驱动蜂鸣器，并处理 K1/K2 页面与静音、PB0/PB1 逐传感器阈值调节。</p>
         </article>
         <article class="card">
           <div class="icon">C</div>
@@ -921,6 +922,7 @@
         <div class="matrix-row"><strong>SENSOR</strong><span>火焰 DO 数字输入，低电平触发，报警优先级最高。</span><span class="chip">PB13</span></div>
         <div class="matrix-row"><strong>MONITOR</strong><span>SSD1306 OLED，软件 I2C，显示实时值、状态和阈值档位。</span><span class="chip">PB6 / PB7</span></div>
         <div class="matrix-row"><strong>MONITOR</strong><span>有源蜂鸣器，危险快响，节点丢失慢响，支持按键静音。</span><span class="chip">PB8</span></div>
+        <div class="matrix-row"><strong>MONITOR</strong><span>外接低有效阈值按键，PB0 选择 MQ135/MQ2/雨量/热敏，PB1 调整当前传感器 5 档阈值。</span><span class="chip">PB0 / PB1</span></div>
         <div class="matrix-row"><strong>OPTIONAL</strong><span>W25Q64 SPI Flash，存在时启用历史记录。</span><span class="chip">SPI2</span></div>
       </div>
     </section>
@@ -979,7 +981,7 @@
       <div class="timeline">
         <article class="step"><div><h3>烧录两个固件</h3><p><code>SensorDebug</code> 输出烧录到板 A，<code>MonitorDebug</code> 输出烧录到板 B。</p></div></article>
         <article class="step"><div><h3>确认串口日志</h3><p>两个 CH340C 调试口均使用 <code>115200 8N1</code>，分别观察 SENSOR 和 MONITOR 日志。</p></div></article>
-        <article class="step"><div><h3>观察 OLED 与看板</h3><p>确认 OLED 显示传感器值，Web Serial 看板显示 JSON schema v2 数据，K1 切换页面，K2 短按静音、长按切换阈值档位。</p></div></article>
+        <article class="step"><div><h3>观察 OLED 与看板</h3><p>确认 OLED 显示传感器值，Web Serial 看板显示 JSON schema v2 数据，K1 切换页面，K2 短按静音，PB0 选择传感器，PB1 调整 5 档阈值。</p></div></article>
         <article class="step"><div><h3>触发风险状态</h3><p>用安全、可控的方式改变 MQ、雨量、热敏或火焰模块输入，观察 OLED、看板风险和蜂鸣器节奏。</p></div></article>
         <article class="step"><div><h3>验证异常恢复</h3><p>断开板间通信后应进入 NODE LOST，恢复通信后回到实时接收。</p></div></article>
       </div>

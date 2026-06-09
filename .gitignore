@@ -22,3 +22,9 @@ MDK-ARM/Fire_F103/
 MDK-ARM/Env-Monitor/
 *.bak
 *.tmp
+*.tsbuildinfo
+
+# Local defense / delivery docs
+docs/DELIVERY_CHECK.zh-CN.md
+docs/FEATURE_INDEX.zh-CN.md
+docs/DEFENSE_DEMO_GUIDE.zh-CN.md

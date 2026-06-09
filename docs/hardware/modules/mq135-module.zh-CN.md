@@ -32,8 +32,9 @@ AO + 电位器 -> LM393 -> DO
 ## 固件映射
 
 - `hal::readAdc1Channel(4)` 采样 MQ135。
-- 阈值档位使用 ADC 原始计数。
-- JSON 字段：`mq135Raw`。
+- 板 B 使用 5 档可调 ADC 原始值空气预警阈值；默认显示为 `3/5`，数值为 `2200`。
+- PB0 可在 MONITOR 阈值页选择 MQ135，PB1 让 `thresholdAirLevel` 在 `0..4` 间循环。
+- JSON 字段：`mq135Raw`、`thresholdAirLevel`、`thresholdAirWarn`。
 
 ## 测试与标定
 

@@ -4,11 +4,25 @@
 #include "App/Protocol/FrameCodec.hpp"
 
 #include "main.h"
+#include "spi.h"
 
 #include <stdio.h>
 #include <string.h>
 
 namespace app {
+namespace {
+
+uint16_t packThresholdLevels(const ThresholdLevels &levels, bool muted)
+{
+  return static_cast<uint16_t>(
+    (normalizeThresholdLevel(levels.air) & 0x07u) |
+    ((normalizeThresholdLevel(levels.smoke) & 0x07u) << 3) |
+    ((normalizeThresholdLevel(levels.rain) & 0x07u) << 6) |
+    ((normalizeThresholdLevel(levels.therm) & 0x07u) << 9) |
+    (muted ? 0x1000u : 0u));
+}
+
+}  // namespace
 
 void W25q64FlashLogger::init()
 {
@@ -18,18 +32,7 @@ void W25q64FlashLogger::init()
   uint8_t capacity;
 
   __HAL_RCC_GPIOB_CLK_ENABLE();
-  __HAL_RCC_SPI2_CLK_ENABLE();
-
-  gpio.Pin = GPIO_PIN_13 | GPIO_PIN_15;
-  gpio.Mode = GPIO_MODE_AF_PP;
-  gpio.Pull = GPIO_NOPULL;
-  gpio.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(GPIOB, &gpio);
-
-  gpio.Pin = GPIO_PIN_14;
-  gpio.Mode = GPIO_MODE_INPUT;
-  gpio.Pull = GPIO_PULLDOWN;
-  HAL_GPIO_Init(GPIOB, &gpio);
+  MX_SPI2_Init();
 
   gpio.Pin = pins::flash_cs_pin;
   gpio.Mode = GPIO_MODE_OUTPUT_PP;
@@ -37,9 +40,6 @@ void W25q64FlashLogger::init()
   gpio.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(pins::flash_cs_port, &gpio);
   cs(true);
-
-  SPI2->CR1 = SPI_CR1_MSTR | SPI_CR1_SSM | SPI_CR1_SSI | SPI_CR1_BR_1 | SPI_CR1_BR_0;
-  SPI2->CR1 |= SPI_CR1_SPE;
 
   cs(false);
   txRx(0x9Fu);
@@ -86,11 +86,12 @@ void W25q64FlashLogger::init()
 bool W25q64FlashLogger::logFrame(
   const SensorFrame &frame,
   AlarmState state,
-  uint8_t threshold_profile,
+  const ThresholdLevels &levels,
   bool muted)
 {
   const uint32_t tick = HAL_GetTick();
   const uint16_t crc_len = static_cast<uint16_t>(log_record_size - 2u);
+  const uint16_t packed_thresholds = packThresholdLevels(levels, muted);
   uint16_t crc;
 
   if ((present_ == 0u) || (pending_log_ != 0u))
@@ -130,8 +131,8 @@ bool W25q64FlashLogger::logFrame(
   pending_record_[21] = static_cast<uint8_t>(tick >> 16);
   pending_record_[22] = static_cast<uint8_t>(tick >> 8);
   pending_record_[23] = static_cast<uint8_t>(tick);
-  pending_record_[24] = threshold_profile;
-  pending_record_[25] = muted ? 1u : 0u;
+  pending_record_[24] = static_cast<uint8_t>(packed_thresholds >> 8);
+  pending_record_[25] = static_cast<uint8_t>(packed_thresholds);
   u32ToBytes(&pending_record_[26], record_count_);
 
   crc = crc16(pending_record_, static_cast<uint8_t>(crc_len));
@@ -224,14 +225,14 @@ void W25q64FlashLogger::cs(bool high)
 
 uint8_t W25q64FlashLogger::txRx(uint8_t data)
 {
-  while ((SPI2->SR & SPI_SR_TXE) == 0u)
+  uint8_t rx = 0xFFu;
+
+  if (HAL_SPI_TransmitReceive(&hspi2, &data, &rx, 1u, 10u) != HAL_OK)
   {
+    return 0xFFu;
   }
-  *reinterpret_cast<__IO uint8_t *>(&SPI2->DR) = data;
-  while ((SPI2->SR & SPI_SR_RXNE) == 0u)
-  {
-  }
-  return static_cast<uint8_t>(SPI2->DR);
+
+  return rx;
 }
 
 uint8_t W25q64FlashLogger::readStatus()

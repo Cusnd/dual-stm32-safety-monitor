@@ -1,6 +1,6 @@
 # Rain Sensor Module
 
-[Hardware index](../index.en.md) | [中文](rain-sensor-module.zh-CN.md) | [LM393](../chips/lm393.en.md)
+[Hardware index](../index.en.md) | [Chinese](rain-sensor-module.zh-CN.md) | [LM393](../chips/lm393.en.md)
 
 ## Role
 
@@ -32,8 +32,9 @@ SIG + potentiometer -> optional LM393 DO
 ## Firmware Mapping
 
 - `hal::readAdc1Channel(6)` samples rain.
-- Default wet threshold starts at raw `1400`.
-- JSON fields: `rainRaw`, `rainWet`; status bit: `bit2`.
+- Board B uses five adjustable wet thresholds; the default level shown as `3/5` is raw `1400`.
+- PB0 can select rain on the monitor threshold page, and PB1 cycles `thresholdRainLevel` through `0..4`.
+- JSON fields: `rainRaw`, `rainWet`, `thresholdRainLevel`, `thresholdRainWet`; status bit: `bit2`.
 
 ## Calibration
 

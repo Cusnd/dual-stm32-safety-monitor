@@ -1,6 +1,6 @@
 # W25Q64 Module
 
-[Hardware index](../index.en.md) | [中文](w25q64-module.zh-CN.md) | [W25Q64 chip](../chips/w25q64.en.md)
+[Hardware index](../index.en.md) | [Chinese](w25q64-module.zh-CN.md) | [W25Q64 chip](../chips/w25q64.en.md)
 
 ## Role
 
@@ -20,7 +20,7 @@ Board B optionally uses this module for the 8 MB circular history log. The monit
 ## Electrical And Interface Notes
 
 - W25Q64 is a 3.3 V SPI NOR flash; do not power or signal it at 5 V.
-- The firmware uses standard single-SPI commands, not quad-SPI.
+- The firmware uses standard single-SPI commands through HAL SPI on SPI2, not quad-SPI.
 - `CS` is controlled as GPIO so metadata and 32-byte log records can share the same SPI2 peripheral with deterministic transactions.
 
 ## Generic Reference Circuit
@@ -43,5 +43,5 @@ GND -> GND
 
 ## Test Notes
 
-- Passing test: boot log prints W25Q ID and record count.
+- Passing test: boot log prints `flash=ok`, then W25Q ID and record count; JSON reports `flashReady=1`.
 - Never power the module from 5 V.

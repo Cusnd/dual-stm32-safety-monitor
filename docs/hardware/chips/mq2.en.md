@@ -1,10 +1,10 @@
 # MQ2 Gas Sensor Element
 
-[Hardware index](../index.en.md) | [中文](mq2.zh-CN.md)
+[Hardware index](../index.en.md) | [Chinese](mq2.zh-CN.md)
 
 ## Role
 
-MQ2 is used as a smoke and combustible-gas trend sensor. The project treats high raw ADC values as warning or danger according to the selected threshold profile.
+MQ2 is used as a smoke and combustible-gas trend sensor. The project treats high raw ADC values as warning or danger according to the active MQ2 level from the five-level threshold table.
 
 ## Element Pins
 
@@ -35,6 +35,7 @@ AO -> optional comparator threshold -> DO
 
 - Reference AO connects to Board A `PA5 / ADC1_CH5`.
 - `evaluateAlarm()` checks the active MQ2 danger threshold before warning logic.
+- Default monitor level `3/5` uses warning `1800` and danger `2800`; `PB0` selects MQ2 and `PB1` cycles the level.
 - Values are raw ADC counts, not gas concentration.
 
 ## Debugging

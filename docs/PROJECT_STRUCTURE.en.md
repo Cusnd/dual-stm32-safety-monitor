@@ -15,8 +15,8 @@ This repository builds two STM32F103C8T6 firmware images from one source tree an
 │   ├── Protocol/             SensorFrame, FrameCodec, FrameStreamDecoder
 │   ├── SensorNode.*          Board A SENSOR role
 │   └── MonitorNode.*         Board B MONITOR role
-├── Core/                     STM32CubeMX-style startup, HAL entry, GPIO, IRQ glue
-├── Drivers/                  STM32 HAL and CMSIS vendor sources
+├── Core/                     STM32CubeMX-style startup, HAL entry, GPIO/SPI, IRQ glue
+├── Drivers/                  STM32 HAL and CMSIS vendor sources, including SPI HAL
 ├── cmake/                    ARM toolchain files and ST-LINK/OpenOCD config
 ├── docs/                     Hardware, build, frontend, function, and design docs
 ├── frontend/                 Static Web Serial dashboard
@@ -36,7 +36,7 @@ This repository builds two STM32F103C8T6 firmware images from one source tree an
 | Sensor role | `App/SensorNode.*`, `App/Drivers/Dht11.*` | Samples DHT11, MQ135, MQ2, rain, thermistor, and flame; sends protocol v2 frames. |
 | Monitor role | `App/MonitorNode.*`, `App/Monitor/*`, `App/Drivers/OledDisplay.*`, `App/Drivers/BoardIo.*`, `App/Drivers/W25q64FlashLogger.*` | Decodes frames, evaluates alarms, refreshes OLED, drives buzzer/buttons, logs optional flash, emits JSON Lines. |
 | Protocol | `App/Protocol/SensorFrame.hpp`, `FrameCodec.*`, `FrameStreamDecoder.*` | Defines wire format and stream recovery after noise or bad frames. |
-| Hardware helpers | `App/Hal/Hardware.*`, `App/BoardPins.hpp`, `Core/Src/gpio.c`, `Core/Inc/main.h` | UART, ADC, delay, ring buffer, and reference pin definitions. |
+| Hardware helpers | `App/Hal/Hardware.*`, `App/BoardPins.hpp`, `Core/Src/gpio.c`, `Core/Src/spi.c`, `Core/Inc/main.h` | UART, ADC, delay, ring buffer, SPI2 initialization, and reference pin definitions. |
 
 The current CMake source lists do not compile WS2813/RGB driver code. Treat older WS2813 hardware notes as legacy/reference unless firmware support is intentionally restored.
 
@@ -113,5 +113,5 @@ npm test
 | Tune alarm behavior | `App/Config.hpp`, `App/Monitor/AlarmEvaluator.*`, `frontend/src/analysis.ts` |
 | Change OLED pages | `App/Monitor/DisplayFormatter.*` |
 | Change buzzer or buttons | `App/Drivers/BoardIo.*`, `MonitorNode::updateButtons()`, `MonitorNode::updateAlarm()` |
-| Change flash log behavior | `App/Drivers/W25q64FlashLogger.*` |
+| Change flash log behavior | `App/Drivers/W25q64FlashLogger.*`, `Core/Src/spi.c`, `Core/Src/stm32f1xx_hal_msp.c` |
 | Change dashboard text | `frontend/src/i18n.ts` and React components under `frontend/src/components/` |

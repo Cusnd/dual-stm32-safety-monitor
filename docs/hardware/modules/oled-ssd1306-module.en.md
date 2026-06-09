@@ -1,6 +1,6 @@
 # SSD1306 OLED Module
 
-[Hardware index](../index.en.md) | [中文](oled-ssd1306-module.zh-CN.md) | [SSD1306](../chips/ssd1306.en.md)
+[Hardware index](../index.en.md) | [Chinese](oled-ssd1306-module.zh-CN.md) | [SSD1306](../chips/ssd1306.en.md)
 
 ## Role
 

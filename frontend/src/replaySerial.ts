@@ -1,4 +1,24 @@
+import type { SerialSourceCallbacks } from "./types";
+
+interface TimerApi {
+  setTimeout(callback: () => void, delayMs: number): number | ReturnType<typeof setTimeout>;
+  clearTimeout(id: number | ReturnType<typeof setTimeout>): void;
+}
+
 export class ReplaySerialSource {
+  private onLine?: (line: string) => void;
+  private onStatus?: SerialSourceCallbacks["onStatus"];
+  private onError?: SerialSourceCallbacks["onError"];
+  private intervalMs: number;
+  private loop: boolean;
+  private sourceUrl: string;
+  private text: string | null;
+  private timerApi: TimerApi;
+  private lines: string[] = [];
+  private index = 0;
+  private running = false;
+  private timerId: number | ReturnType<typeof setTimeout> | null = null;
+
   constructor({
     onLine,
     onStatus,
@@ -8,6 +28,12 @@ export class ReplaySerialSource {
     sourceUrl = "./fixtures/sample-serial.log",
     text = null,
     timerApi = globalThis,
+  }: SerialSourceCallbacks & {
+    intervalMs?: number;
+    loop?: boolean;
+    sourceUrl?: string;
+    text?: string | null;
+    timerApi?: TimerApi;
   }) {
     this.onLine = onLine;
     this.onStatus = onStatus;
@@ -17,13 +43,9 @@ export class ReplaySerialSource {
     this.sourceUrl = sourceUrl;
     this.text = text;
     this.timerApi = timerApi;
-    this.lines = [];
-    this.index = 0;
-    this.running = false;
-    this.timerId = null;
   }
 
-  async connect() {
+  async connect(): Promise<void> {
     if (this.running) {
       return;
     }
@@ -44,7 +66,7 @@ export class ReplaySerialSource {
     }
   }
 
-  async disconnect() {
+  async disconnect(): Promise<void> {
     this.clearTimer();
     if (!this.running) {
       return;
@@ -53,7 +75,7 @@ export class ReplaySerialSource {
     this.onStatus?.("disconnected");
   }
 
-  async loadText() {
+  private async loadText(): Promise<string> {
     const response = await fetch(this.sourceUrl, { cache: "no-store" });
     if (!response.ok) {
       throw new Error(`Replay fixture failed: HTTP ${response.status}`);
@@ -61,19 +83,19 @@ export class ReplaySerialSource {
     return response.text();
   }
 
-  scheduleNext(delayMs) {
+  private scheduleNext(delayMs: number): void {
     this.clearTimer();
     this.timerId = this.timerApi.setTimeout(() => this.emitNext(), delayMs);
   }
 
-  clearTimer() {
+  private clearTimer(): void {
     if (this.timerId !== null) {
       this.timerApi.clearTimeout(this.timerId);
       this.timerId = null;
     }
   }
 
-  emitNext() {
+  private emitNext(): void {
     if (!this.running) {
       return;
     }
@@ -84,7 +106,7 @@ export class ReplaySerialSource {
 
     if (this.index >= this.lines.length) {
       if (!this.loop) {
-        this.disconnect();
+        void this.disconnect();
         return;
       }
       this.index = 0;
@@ -94,3 +116,4 @@ export class ReplaySerialSource {
     this.scheduleNext(this.intervalMs);
   }
 }
+

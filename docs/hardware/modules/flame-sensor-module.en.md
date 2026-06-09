@@ -1,6 +1,6 @@
 # Flame Sensor Module
 
-[Hardware index](../index.en.md) | [中文](flame-sensor-module.zh-CN.md) | [LM393](../chips/lm393.en.md)
+[Hardware index](../index.en.md) | [Chinese](flame-sensor-module.zh-CN.md) | [LM393](../chips/lm393.en.md)
 
 ## Role
 

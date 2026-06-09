@@ -32,8 +32,9 @@ AO + 电位器 -> LM393 -> DO
 ## 固件映射
 
 - `Thermistor_AdcToC10()` 把 AO 换算为 0.1 摄氏度。
-- 默认预警/危险阈值：45.0 摄氏度 / 70.0 摄氏度。
-- JSON 字段：`thermRaw`、`thermC10`、`thermHot`；状态位：`bit1`、`bit3`。
+- 板 B 使用 5 档可调热敏预警/危险阈值；默认显示为 `3/5`，数值为 45.0 摄氏度 / 70.0 摄氏度。
+- PB0 可在 MONITOR 阈值页选择热敏，PB1 让 `thresholdThermLevel` 在 `0..4` 间循环。
+- JSON 字段：`thermRaw`、`thermC10`、`thermHot`、`thresholdThermLevel`、`thresholdThermWarnC10`、`thresholdThermDangerC10`；状态位：`bit1`、`bit3`。
 
 ## 测试与标定
 

@@ -20,7 +20,7 @@
 ## 电气与接口要点
 
 - W25Q64 是 3.3 V SPI NOR Flash，不能用 5 V 供电或 5 V 信号驱动。
-- 参考固件使用标准单线 SPI 指令，不使用 Quad SPI。
+- 参考固件通过 SPI2 的 HAL SPI 使用标准单线 SPI 指令，不使用 Quad SPI。
 - `CS` 按 GPIO 控制，便于 sector 0 元数据和 32 字节日志记录共用同一个 SPI2 外设并保持事务边界清晰。
 
 ## 通用参考电路
@@ -43,5 +43,5 @@ GND -> GND
 
 ## 测试要点
 
-- 通过标准：启动日志打印 W25Q ID 和记录数。
+- 通过标准：启动日志打印 `flash=ok`，随后打印 W25Q ID 和记录数；JSON 中 `flashReady=1`。
 - 模块严禁接 5 V。

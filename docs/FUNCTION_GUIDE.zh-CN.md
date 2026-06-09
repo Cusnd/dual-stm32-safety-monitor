@@ -59,31 +59,36 @@ AA 55 LEN VER TEMP HUMI MQ135 MQ2 RAIN THERM_ADC THERM_C10 FLAME RAIN_WET THERM_
 
 | 函数或类 | 作用 |
 |---|---|
-| `MonitorNode::init()` | 复位显示节点状态，初始化蜂鸣器、OLED 总线/控制器、W25Q64，并打印启动状态。 |
+| `MonitorNode::init()` | 复位显示节点状态，初始化蜂鸣器、PB0/PB1 外接阈值键、OLED 总线/控制器、W25Q64，并打印启动状态。 |
 | `MonitorNode::run()` | 协作式主循环：处理接收、扫描按键、推进 Flash 任务、评估报警、更新输出、刷新 OLED、调度日志。 |
 | `MonitorNode::processRx()` | 从 `hal::readUsartByte()` 取 USART3 字节，送入 `FrameStreamDecoder`，更新 `latest_frame_`，并打印 JSON schema v2。 |
-| `MonitorNode::updateButtons()` | K1 切换 OLED 页面；K2 短按静音 60 秒；K2 长按循环切换阈值档位。 |
+| `MonitorNode::updateButtons()` | K1 切换 OLED 页面；K2 短按静音 60 秒；PB0 选择 MQ135/MQ2/雨量/热敏；PB1 让当前传感器在 5 档阈值中循环。 |
+| `MonitorNode::pressedEdge()` | 对低有效外接阈值键做防抖，并只产生一次按下边沿。 |
+| `thresholdsFromLevels()` | 根据四个独立 0..4 传感器档位生成当前 `AlarmThresholds`。 |
+| `compatibleThresholdProfile()` | 保留 legacy JSON `thresholdProfile`：`0` 全默认，`1` 全旧灵敏，`2` 全旧宽松，`255` 混合/自定义。 |
 | `MonitorNode::updateAlarm()` | 驱动蜂鸣器节奏：危险快速鸣叫，节点离线慢速鸣叫，静音关闭，预警/正常关闭。 |
 | `MonitorNode::updateDisplay()` | 使用 `formatMonitorDisplay()` 生成文本，并写入四行 OLED。 |
-| `MonitorNode::printFrontendJson()` | 输出一行浏览器可解析的 JSON，包含 schema v2 字段、报警状态文本和 legacy `externalRgb` placeholder。 |
+| `MonitorNode::printFrontendJson()` | 输出一行浏览器可解析的 JSON，包含 schema v2 字段、逐传感器档位、实际阈值、报警状态文本和 legacy `externalRgb` placeholder。 |
 
 ## 报警、显示与板级 I/O
 
 | 函数或类 | 作用 |
 |---|---|
-| `evaluateAlarm()` | 根据最新数据帧、超时、静音窗口和阈值档位计算 waiting、lost、danger、warn、muted。 |
+| `evaluateAlarm()` | 根据最新数据帧、超时、静音窗口和当前逐传感器阈值计算 waiting、lost、danger、warn、muted。 |
 | `alarmStateString()` | 把 `AlarmState` 转为 JSON 字符串：`normal`、`warn`、`danger`、`waiting` 或 `node_lost`。 |
-| `formatMonitorDisplay()` | 把首页实时读数和第二页阈值/日志状态格式化为四行固定 OLED 文本。 |
+| `formatMonitorDisplay()` | 把首页实时读数和第二页当前调节传感器、`1/5..5/5` 档位、实际阈值、Flash 状态格式化为四行 OLED 文本。 |
 | `Buzzer::init()` / `Buzzer::set()` | 配置并驱动 `PB8` 上的高电平有源蜂鸣器。 |
+| `Buttons::init()` | 把外接阈值按键 `PB0/PB1` 配置为内部上拉输入，按下接 GND 为低电平。 |
 | `Buttons::key1Pressed()` / `Buttons::key2Pressed()` | 读取高电平按下的 K1/K2。 |
+| `Buttons::thresholdSelectPressed()` / `Buttons::thresholdLevelPressed()` | 读取低有效 PB0/PB1 阈值按键。 |
 | `OledDisplay::initBus()` / `initController()` / `clear()` / `printLine()` | 小型 SSD1306 软件 I2C 驱动，用于本地显示。 |
 
 ## 可选 Flash 记录器
 
 | 函数或类 | 作用 |
 |---|---|
-| `W25q64FlashLogger::init()` | 初始化 SPI2，读取 JEDEC ID，检测兼容 W25Q64，并恢复游标元数据。 |
-| `W25q64FlashLogger::logFrame()` | 构造一条待写入的 32 字节 v2 记录，包含数据帧、报警状态、阈值档位、静音标志、tick、记录计数和 CRC。 |
+| `W25q64FlashLogger::init()` | 调用 `MX_SPI2_Init()`，通过 HAL SPI 读取 JEDEC ID，检测兼容 W25Q64，并恢复游标元数据。 |
+| `W25q64FlashLogger::logFrame()` | 构造一条待写入的 32 字节 v2 记录，包含数据帧、报警状态、tick、四个压缩阈值档位、静音位、记录计数和 CRC。 |
 | `W25q64FlashLogger::process()` | 非阻塞状态机，处理扇区擦除、页编程、元数据擦除和元数据写入任务。 |
 | `W25q64FlashLogger::present()` | 报告日志功能是否可用。 |
 | `W25q64FlashLogger::recordCount()` | 返回 OLED 和 JSON 中显示的累计记录数。 |
@@ -93,7 +98,7 @@ AA 55 LEN VER TEMP HUMI MQ135 MQ2 RAIN THERM_ADC THERM_C10 FLAME RAIN_WET THERM_
 | 模块 | 作用 |
 |---|---|
 | `frontend/src/parser.ts` | 解析 MONITOR JSON Lines，校验 schema v1/v2，并暴露可本地化的 parser 错误码。 |
-| `frontend/src/analysis.ts` | 镜像阈值档位，为看板和 AI 兜底生成本地风险摘要。 |
+| `frontend/src/analysis.ts` | 优先使用固件上报的实际阈值字段，旧日志回退到 `thresholdProfile`，并为看板和 AI 兜底生成本地风险摘要。 |
 | `frontend/src/aiProvider.ts` | 提供本地规则聊天和 DeepSeek 直连/代理 provider，并支持本地化 prompt 与兜底回复。 |
 | `frontend/src/hooks/useDashboard.ts` | 管理 Web Serial/回放源、历史、事件日志、AI 模式和聊天状态。 |
 | `frontend/src/components/TrendChart.tsx` | 渲染 ECharts 趋势图，支持图例、缩放、传感器选中和历史值。 |
@@ -103,6 +108,6 @@ AA 55 LEN VER TEMP HUMI MQ135 MQ2 RAIN THERM_ADC THERM_C10 FLAME RAIN_WET THERM_
 | 修改 | 主要文件 |
 |---|---|
 | 添加传感器数值 | `SensorFrame`、`FrameCodec`、`SensorNode::run()`、`MonitorNode::printFrontendJson()`、前端 parser 和文档 |
-| 修改报警阈值 | `App/Config.hpp` 中的 `threshold_profiles`，以及 `frontend/src/analysis.ts` 中镜像的前端阈值 |
+| 修改报警阈值 | `App/Config.hpp` 中的 5 档数组和 `thresholdsFromLevels()`，以及 `frontend/src/analysis.ts` 中的旧日志回退/默认值 |
 | 修改 OLED 文本 | `formatMonitorDisplay()` |
-| 修改 W25Q64 记录格式 | `W25q64FlashLogger::logFrame()`、CRC/元数据策略、文档和未来导出工具 |
+| 修改 W25Q64 记录格式或 SPI2 初始化 | `W25q64FlashLogger::logFrame()`、`Core/Src/spi.c`、SPI MSP 配置、CRC/元数据策略、文档和未来导出工具 |

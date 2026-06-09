@@ -1,6 +1,6 @@
 # Active Buzzer Module
 
-[Hardware index](../index.en.md) | [中文](active-buzzer-module.zh-CN.md)
+[Hardware index](../index.en.md) | [Chinese](active-buzzer-module.zh-CN.md)
 
 ## Role
 

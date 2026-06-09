@@ -1,6 +1,6 @@
 # Hardware Reference
 
-[README](../../README.md) | [中文](index.zh-CN.md) | [Wiring](../../WIRING.md)
+[README](../../README.md) | [Chinese](index.zh-CN.md) | [Wiring](../../WIRING.md)
 
 This directory documents the project as a generic STM32F103C8T6 dual-board reference design. The current firmware pin map is treated as the reference implementation, not as a vendor-specific board requirement.
 

@@ -1,6 +1,6 @@
 # DHT11 Module
 
-[Hardware index](../index.en.md) | [中文](dht11-module.zh-CN.md) | [DHT11 chip](../chips/dht11.en.md)
+[Hardware index](../index.en.md) | [Chinese](dht11-module.zh-CN.md) | [DHT11 chip](../chips/dht11.en.md)
 
 ## Role
 

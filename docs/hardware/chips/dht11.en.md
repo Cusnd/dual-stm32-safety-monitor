@@ -1,6 +1,6 @@
 # DHT11 Sensor IC
 
-[Hardware index](../index.en.md) | [中文](dht11.zh-CN.md)
+[Hardware index](../index.en.md) | [Chinese](dht11.zh-CN.md)
 
 ## Role
 

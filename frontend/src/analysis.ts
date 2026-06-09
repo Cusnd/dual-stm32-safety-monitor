@@ -1,4 +1,6 @@
-const THRESHOLD_PROFILES = [
+import type { AnalysisSnapshot, Locale, SensorRecord, ThresholdProfile } from "./types";
+
+const THRESHOLD_PROFILES: ThresholdProfile[] = [
   { airWarn: 2200, smokeWarn: 1800, smokeDanger: 2800, rainWet: 1400, thermWarnC10: 450, thermDangerC10: 700 },
   { airWarn: 1800, smokeWarn: 1400, smokeDanger: 2400, rainWet: 1200, thermWarnC10: 400, thermDangerC10: 650 },
   { airWarn: 2600, smokeWarn: 2200, smokeDanger: 3300, rainWet: 1800, thermWarnC10: 500, thermDangerC10: 750 },
@@ -20,19 +22,19 @@ const messages = {
     staleReason: "超过 3 秒没有收到新的有效传感器帧。",
     flameReason: "火焰传感器处于触发状态。",
     dhtReason: "DHT11 状态位提示读取异常。",
-    rainReason: (value, limit) => `雨量 ADC=${value} 已达到湿触发阈值 ${limit}。`,
+    rainReason: (value: number, limit: number) => `雨量 ADC=${value} 已达到湿触发阈值 ${limit}。`,
     rainSwitchReason: "雨量状态位提示已经触发湿态。",
-    thermDanger: (value, limit) => `热敏温度 ${value}°C 已达到危险阈值 ${limit}°C。`,
-    thermWarn: (value, limit) => `热敏温度 ${value}°C 已超过预警阈值 ${limit}°C。`,
+    thermDanger: (value: string, limit: string) => `热敏温度 ${value}°C 已达到危险阈值 ${limit}°C。`,
+    thermWarn: (value: string, limit: string) => `热敏温度 ${value}°C 已超过预警阈值 ${limit}°C。`,
     thermSwitchReason: "热敏 DO 状态位提示高温触发。",
     thermAdcReason: "热敏 ADC 状态位提示模拟量异常。",
-    mq2Danger: (value, limit) => `MQ2=${value} 已达到危险阈值 ${limit}。`,
-    mq2Warn: (value, limit) => `MQ2=${value} 已超过预警阈值 ${limit}。`,
-    mq135Warn: (value, limit) => `MQ135=${value} 已超过空气质量预警阈值 ${limit}。`,
+    mq2Danger: (value: number, limit: number) => `MQ2=${value} 已达到危险阈值 ${limit}。`,
+    mq2Warn: (value: number, limit: number) => `MQ2=${value} 已超过预警阈值 ${limit}。`,
+    mq135Warn: (value: number, limit: number) => `MQ135=${value} 已超过空气质量预警阈值 ${limit}。`,
     normalReason: "MQ135、MQ2、火焰、雨量和热敏状态没有触发当前阈值。",
     trendStable: "最近窗口内主要指标变化平稳。",
-    trendRising: (name, delta) => `${name} 最近窗口上升 ${delta}。`,
-    trendFalling: (name, delta) => `${name} 最近窗口下降 ${Math.abs(delta)}。`,
+    trendRising: (name: string, delta: number) => `${name} 最近窗口上升 ${delta}。`,
+    trendFalling: (name: string, delta: number) => `${name} 最近窗口下降 ${Math.abs(delta)}。`,
     recWait: "启动模拟串口或连接板 B CH340C 串口后再分析。",
     recOffline: "检查板 A 供电、USART3 交叉线、GND 共地和板 B 接收状态。",
     recDanger: "先远离风险源，关闭蜂鸣静音后排查烟雾、火焰或高温触发原因。",
@@ -54,19 +56,19 @@ const messages = {
     staleReason: "No fresh valid sensor frame arrived for more than 3 seconds.",
     flameReason: "The flame sensor is triggered.",
     dhtReason: "The DHT11 status bit reports a read error.",
-    rainReason: (value, limit) => `Rain ADC=${value} reached wet threshold ${limit}.`,
+    rainReason: (value: number, limit: number) => `Rain ADC=${value} reached wet threshold ${limit}.`,
     rainSwitchReason: "The rain status bit reports wet trigger.",
-    thermDanger: (value, limit) => `Thermistor ${value}°C reached danger threshold ${limit}°C.`,
-    thermWarn: (value, limit) => `Thermistor ${value}°C exceeded warning threshold ${limit}°C.`,
+    thermDanger: (value: string, limit: string) => `Thermistor ${value}°C reached danger threshold ${limit}°C.`,
+    thermWarn: (value: string, limit: string) => `Thermistor ${value}°C exceeded warning threshold ${limit}°C.`,
     thermSwitchReason: "The thermistor DO status bit reports high temperature.",
     thermAdcReason: "The thermistor ADC status bit reports an analog fault.",
-    mq2Danger: (value, limit) => `MQ2=${value} reached danger threshold ${limit}.`,
-    mq2Warn: (value, limit) => `MQ2=${value} exceeded warning threshold ${limit}.`,
-    mq135Warn: (value, limit) => `MQ135=${value} exceeded air warning threshold ${limit}.`,
+    mq2Danger: (value: number, limit: number) => `MQ2=${value} reached danger threshold ${limit}.`,
+    mq2Warn: (value: number, limit: number) => `MQ2=${value} exceeded warning threshold ${limit}.`,
+    mq135Warn: (value: number, limit: number) => `MQ135=${value} exceeded air warning threshold ${limit}.`,
     normalReason: "MQ135, MQ2, flame, rain, and thermistor state do not trigger the current thresholds.",
     trendStable: "Main readings are stable in the recent window.",
-    trendRising: (name, delta) => `${name} rose by ${delta} in the recent window.`,
-    trendFalling: (name, delta) => `${name} fell by ${Math.abs(delta)} in the recent window.`,
+    trendRising: (name: string, delta: number) => `${name} rose by ${delta} in the recent window.`,
+    trendFalling: (name: string, delta: number) => `${name} fell by ${Math.abs(delta)} in the recent window.`,
     recWait: "Start replay or connect the Board B CH340C serial port before analysis.",
     recOffline: "Check Board A power, USART3 cross-wiring, common GND, and Board B reception.",
     recDanger: "Move away from the source first, then inspect smoke, flame, or high-temperature causes after muting is handled.",
@@ -75,23 +77,46 @@ const messages = {
   },
 };
 
-function msg(locale) {
+function msg(locale: Locale) {
   return messages[locale] ?? messages.en;
 }
 
-export function thresholdForProfile(profile) {
+export function thresholdForProfile(profile: number): ThresholdProfile {
   return THRESHOLD_PROFILES[profile] ?? THRESHOLD_PROFILES[0];
 }
 
-function recentDelta(history, key) {
-  const values = history.slice(-5).filter((item) => Number.isFinite(item[key]));
+export function thresholdsForRecord(record: SensorRecord | null | undefined): ThresholdProfile {
+  if (
+    record &&
+    Number.isFinite(record.thresholdAirWarn) &&
+    Number.isFinite(record.thresholdSmokeWarn) &&
+    Number.isFinite(record.thresholdSmokeDanger) &&
+    Number.isFinite(record.thresholdRainWet) &&
+    Number.isFinite(record.thresholdThermWarnC10) &&
+    Number.isFinite(record.thresholdThermDangerC10)
+  ) {
+    return {
+      airWarn: record.thresholdAirWarn as number,
+      smokeWarn: record.thresholdSmokeWarn as number,
+      smokeDanger: record.thresholdSmokeDanger as number,
+      rainWet: record.thresholdRainWet as number,
+      thermWarnC10: record.thresholdThermWarnC10 as number,
+      thermDangerC10: record.thresholdThermDangerC10 as number,
+    };
+  }
+
+  return thresholdForProfile(record?.thresholdProfile ?? 0);
+}
+
+function recentDelta(history: SensorRecord[], key: keyof SensorRecord): number {
+  const values = history.slice(-5).map((item) => item[key]).filter((value): value is number => Number.isFinite(value));
   if (values.length < 2) {
     return 0;
   }
-  return values[values.length - 1][key] - values[0][key];
+  return values[values.length - 1] - values[0];
 }
 
-function addTrend(trends, locale, name, delta, minimum) {
+function addTrend(trends: string[], locale: Locale, name: string, delta: number, minimum: number): void {
   const t = msg(locale);
   if (Math.abs(delta) < minimum) {
     return;
@@ -99,8 +124,8 @@ function addTrend(trends, locale, name, delta, minimum) {
   trends.push(delta > 0 ? t.trendRising(name, delta) : t.trendFalling(name, delta));
 }
 
-function c10ToC(value) {
-  return Number.isFinite(value) ? (value / 10).toFixed(1) : "--";
+function c10ToC(value: number | null): string {
+  return Number.isFinite(value) ? ((value as number) / 10).toFixed(1) : "--";
 }
 
 export function buildAnalysisSnapshot({
@@ -109,7 +134,13 @@ export function buildAnalysisSnapshot({
   stale = false,
   locale = "zh-CN",
   now = Date.now(),
-}) {
+}: {
+  latest: SensorRecord | null;
+  history?: SensorRecord[];
+  stale?: boolean;
+  locale?: Locale;
+  now?: number;
+}): AnalysisSnapshot {
   const t = msg(locale);
   const cleanHistory = Array.isArray(history) ? history : [];
 
@@ -130,11 +161,11 @@ export function buildAnalysisSnapshot({
     };
   }
 
-  const thresholds = thresholdForProfile(latest.thresholdProfile);
-  const reasons = [];
-  const trends = [];
-  const recommendations = [];
-  let riskLevel = "normal";
+  const thresholds = thresholdsForRecord(latest);
+  const reasons: string[] = [];
+  const trends: string[] = [];
+  const recommendations: string[] = [];
+  let riskLevel: AnalysisSnapshot["riskLevel"] = "normal";
 
   if (stale || latest.alarm === "node_lost") {
     riskLevel = "offline";
@@ -163,25 +194,25 @@ export function buildAnalysisSnapshot({
       reasons.push(t.mq135Warn(latest.mq135Raw, thresholds.airWarn));
     }
 
-    if ((latest.rainWet !== 0) || ((latest.status & 0x04) !== 0)) {
+    if (latest.rainWet !== 0 || (latest.status & 0x04) !== 0) {
       if (riskLevel === "normal") {
         riskLevel = "warning";
       }
       reasons.push(t.rainSwitchReason);
-    } else if (Number.isFinite(latest.rainRaw) && latest.rainRaw >= thresholds.rainWet) {
+    } else if (Number.isFinite(latest.rainRaw) && (latest.rainRaw as number) >= thresholds.rainWet) {
       if (riskLevel === "normal") {
         riskLevel = "warning";
       }
-      reasons.push(t.rainReason(latest.rainRaw, thresholds.rainWet));
+      reasons.push(t.rainReason(latest.rainRaw as number, thresholds.rainWet));
     }
 
-    if ((latest.thermHot !== 0) || ((latest.status & 0x02) !== 0)) {
+    if (latest.thermHot !== 0 || (latest.status & 0x02) !== 0) {
       riskLevel = "danger";
       reasons.push(t.thermSwitchReason);
-    } else if (Number.isFinite(latest.thermC10) && latest.thermC10 >= thresholds.thermDangerC10) {
+    } else if (Number.isFinite(latest.thermC10) && (latest.thermC10 as number) >= thresholds.thermDangerC10) {
       riskLevel = "danger";
       reasons.push(t.thermDanger(c10ToC(latest.thermC10), c10ToC(thresholds.thermDangerC10)));
-    } else if (Number.isFinite(latest.thermC10) && latest.thermC10 >= thresholds.thermWarnC10) {
+    } else if (Number.isFinite(latest.thermC10) && (latest.thermC10 as number) >= thresholds.thermWarnC10) {
       if (riskLevel !== "danger") {
         riskLevel = "warning";
       }

@@ -16,17 +16,21 @@ void MonitorNode::init()
   last_rx_ms_ = 0u;
   have_rx_ = 0u;
   page_ = 0u;
-  threshold_profile_ = 0u;
+  threshold_levels_ = default_threshold_levels;
+  selected_threshold_sensor_ = static_cast<uint8_t>(ThresholdSensor::Air);
   mute_until_ms_ = 0u;
   k1_last_ = 0u;
   k2_last_ = 0u;
   k2_down_ms_ = 0u;
+  threshold_select_button_ = {};
+  threshold_level_button_ = {};
   last_ui_ms_ = 0u;
   last_alarm_ms_ = 0u;
   last_log_ms_ = 0u;
   last_logged_state_ = 0xFFu;
 
   buzzer_.init();
+  buttons_.init();
   oled_.initBus();
 
   flash_.init();
@@ -46,7 +50,7 @@ void MonitorNode::run()
   while (1)
   {
     const uint32_t now = HAL_GetTick();
-    const AlarmThresholds &thresholds = threshold_profiles[threshold_profile_];
+    const AlarmThresholds thresholds = thresholdsFromLevels(threshold_levels_);
 
     processRx(now);
     updateButtons(now);
@@ -73,7 +77,7 @@ void MonitorNode::run()
       if ((state_value != last_logged_state_) ||
           (static_cast<uint32_t>(now - last_log_ms_) >= flash_log_period_ms))
       {
-        if (flash_.logFrame(latest_frame_, alarm.state, threshold_profile_, alarm.muted != 0u))
+        if (flash_.logFrame(latest_frame_, alarm.state, threshold_levels_, alarm.muted != 0u))
         {
           last_log_ms_ = now;
           last_logged_state_ = state_value;
@@ -98,9 +102,9 @@ void MonitorNode::processRx(uint32_t now)
         latest_frame_ = frame;
         have_rx_ = 1u;
         last_rx_ms_ = now;
+        const AlarmThresholds thresholds = thresholdsFromLevels(threshold_levels_);
         const AlarmEvaluation alarm = evaluateAlarm(
-          latest_frame_, true, now, last_rx_ms_, mute_until_ms_,
-          threshold_profiles[threshold_profile_]);
+          latest_frame_, true, now, last_rx_ms_, mute_until_ms_, thresholds);
         printf("[MONITOR] rx v%u seq=%u t=%u h=%u mq135=%u mq2=%u rain=%u therm=%d.%dC flame=%u status=0x%02X\r\n",
                FrameCodec::version,
                frame.seq, frame.temp, frame.humi, frame.mq135_adc, frame.mq2_adc,
@@ -126,6 +130,10 @@ void MonitorNode::updateButtons(uint32_t now)
 {
   const uint8_t k1 = buttons_.key1Pressed() ? 1u : 0u;
   const uint8_t k2 = buttons_.key2Pressed() ? 1u : 0u;
+  const uint8_t select_pressed =
+    pressedEdge(threshold_select_button_, buttons_.thresholdSelectPressed() ? 1u : 0u, now);
+  const uint8_t level_pressed =
+    pressedEdge(threshold_level_button_, buttons_.thresholdLevelPressed() ? 1u : 0u, now);
 
   if ((k1 != 0u) && (k1_last_ == 0u))
   {
@@ -139,28 +147,119 @@ void MonitorNode::updateButtons(uint32_t now)
   else if ((k2 == 0u) && (k2_last_ != 0u))
   {
     const uint32_t held = now - k2_down_ms_;
-    if (held >= 1200u)
-    {
-      threshold_profile_ = static_cast<uint8_t>((threshold_profile_ + 1u) % threshold_profile_count);
-      printf("[MONITOR] threshold profile=%u\r\n", threshold_profile_);
-    }
-    else
+    if (held < 1200u)
     {
       mute_until_ms_ = now + mute_time_ms;
       printf("[MONITOR] buzzer muted for 60s\r\n");
     }
   }
 
+  if (select_pressed != 0u)
+  {
+    selected_threshold_sensor_ =
+      static_cast<uint8_t>((selected_threshold_sensor_ + 1u) % threshold_sensor_count);
+    page_ = 1u;
+    printf("[MONITOR] threshold sensor=%s level=%u\r\n",
+           selectedThresholdName(),
+           static_cast<unsigned int>(selectedThresholdLevel() + 1u));
+  }
+
+  if (level_pressed != 0u)
+  {
+    uint8_t &level = selectedThresholdLevel();
+    level = static_cast<uint8_t>((normalizeThresholdLevel(level) + 1u) % threshold_level_count);
+    page_ = 1u;
+    printf("[MONITOR] threshold %s level=%u profile=%u\r\n",
+           selectedThresholdName(),
+           static_cast<unsigned int>(level + 1u),
+           static_cast<unsigned int>(compatibleThresholdProfile(threshold_levels_)));
+  }
+
   k1_last_ = k1;
   k2_last_ = k2;
 }
 
+uint8_t MonitorNode::pressedEdge(DebouncedButton &button, uint8_t raw_pressed, uint32_t now)
+{
+  if (raw_pressed != button.raw)
+  {
+    button.raw = raw_pressed;
+    button.changed_ms = now;
+  }
+
+  if ((raw_pressed != button.stable) &&
+      (static_cast<uint32_t>(now - button.changed_ms) >= threshold_key_debounce_ms))
+  {
+    button.stable = raw_pressed;
+    return button.stable != 0u ? 1u : 0u;
+  }
+
+  return 0u;
+}
+
+uint8_t &MonitorNode::selectedThresholdLevel()
+{
+  switch (static_cast<ThresholdSensor>(selected_threshold_sensor_))
+  {
+    case ThresholdSensor::Smoke:
+      return threshold_levels_.smoke;
+    case ThresholdSensor::Rain:
+      return threshold_levels_.rain;
+    case ThresholdSensor::Therm:
+      return threshold_levels_.therm;
+    case ThresholdSensor::Air:
+    default:
+      return threshold_levels_.air;
+  }
+}
+
+uint8_t MonitorNode::selectedThresholdLevel() const
+{
+  switch (static_cast<ThresholdSensor>(selected_threshold_sensor_))
+  {
+    case ThresholdSensor::Smoke:
+      return normalizeThresholdLevel(threshold_levels_.smoke);
+    case ThresholdSensor::Rain:
+      return normalizeThresholdLevel(threshold_levels_.rain);
+    case ThresholdSensor::Therm:
+      return normalizeThresholdLevel(threshold_levels_.therm);
+    case ThresholdSensor::Air:
+    default:
+      return normalizeThresholdLevel(threshold_levels_.air);
+  }
+}
+
+const char *MonitorNode::selectedThresholdName() const
+{
+  switch (static_cast<ThresholdSensor>(selected_threshold_sensor_))
+  {
+    case ThresholdSensor::Smoke:
+      return "MQ2";
+    case ThresholdSensor::Rain:
+      return "RAIN";
+    case ThresholdSensor::Therm:
+      return "THERM";
+    case ThresholdSensor::Air:
+    default:
+      return "MQ135";
+  }
+}
+
 void MonitorNode::printFrontendJson(const SensorFrame &frame, const AlarmEvaluation &alarm) const
 {
+  const AlarmThresholds thresholds = thresholdsFromLevels(threshold_levels_);
+  const uint8_t threshold_profile = compatibleThresholdProfile(threshold_levels_);
+  const uint8_t selected_threshold_sensor =
+    selected_threshold_sensor_ < threshold_sensor_count ? selected_threshold_sensor_ : 0u;
+
   printf("{\"type\":\"sensor\",\"schemaVersion\":%u,\"seq\":%u,\"tickMs\":%lu,\"tempC\":%u,"
          "\"humidityPct\":%u,\"mq135Raw\":%u,\"mq2Raw\":%u,\"rainRaw\":%u,"
          "\"thermRaw\":%u,\"thermC10\":%d,\"rainWet\":%u,\"thermHot\":%u,\"flame\":%u,"
          "\"status\":%u,\"alarm\":\"%s\",\"thresholdProfile\":%u,"
+         "\"selectedThresholdSensor\":%u,\"thresholdAirLevel\":%u,"
+         "\"thresholdSmokeLevel\":%u,\"thresholdRainLevel\":%u,\"thresholdThermLevel\":%u,"
+         "\"thresholdAirWarn\":%u,\"thresholdSmokeWarn\":%u,\"thresholdSmokeDanger\":%u,"
+         "\"thresholdRainWet\":%u,\"thresholdThermWarnC10\":%d,\"thresholdThermDangerC10\":%d,"
          "\"mute\":%u,\"flashReady\":%u,\"flashRecords\":%lu,\"externalRgb\":%u}\n",
          static_cast<unsigned int>(FrameCodec::version),
          static_cast<unsigned int>(frame.seq),
@@ -177,7 +276,18 @@ void MonitorNode::printFrontendJson(const SensorFrame &frame, const AlarmEvaluat
          static_cast<unsigned int>(frame.flame),
          static_cast<unsigned int>(frame.status),
          alarmStateString(alarm.state),
-         static_cast<unsigned int>(threshold_profile_),
+         static_cast<unsigned int>(threshold_profile),
+         static_cast<unsigned int>(selected_threshold_sensor),
+         static_cast<unsigned int>(normalizeThresholdLevel(threshold_levels_.air)),
+         static_cast<unsigned int>(normalizeThresholdLevel(threshold_levels_.smoke)),
+         static_cast<unsigned int>(normalizeThresholdLevel(threshold_levels_.rain)),
+         static_cast<unsigned int>(normalizeThresholdLevel(threshold_levels_.therm)),
+         static_cast<unsigned int>(thresholds.air_warn),
+         static_cast<unsigned int>(thresholds.smoke_warn),
+         static_cast<unsigned int>(thresholds.smoke_danger),
+         static_cast<unsigned int>(thresholds.rain_wet),
+         static_cast<int>(thresholds.therm_warn_c10),
+         static_cast<int>(thresholds.therm_danger_c10),
          static_cast<unsigned int>(alarm.muted),
          flash_.present() ? 1u : 0u,
          static_cast<unsigned long>(flash_.recordCount()),
@@ -211,9 +321,9 @@ void MonitorNode::updateAlarm(const AlarmEvaluation &alarm, uint32_t now)
 void MonitorNode::updateDisplay(const AlarmEvaluation &alarm)
 {
   MonitorDisplayLines lines;
-  formatMonitorDisplay(lines, latest_frame_, alarm, page_, threshold_profile_,
-                       threshold_profiles[threshold_profile_], flash_.present(),
-                       flash_.recordCount());
+  const AlarmThresholds thresholds = thresholdsFromLevels(threshold_levels_);
+  formatMonitorDisplay(lines, latest_frame_, alarm, page_, selected_threshold_sensor_,
+                       threshold_levels_, thresholds, flash_.present(), flash_.recordCount());
 
   for (uint8_t i = 0u; i < MonitorDisplayLines::count; i++)
   {

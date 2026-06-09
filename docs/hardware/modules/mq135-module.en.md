@@ -1,6 +1,6 @@
 # MQ135 Module
 
-[Hardware index](../index.en.md) | [中文](mq135-module.zh-CN.md) | [MQ135 element](../chips/mq135.en.md) | [LM393](../chips/lm393.en.md)
+[Hardware index](../index.en.md) | [Chinese](mq135-module.zh-CN.md) | [MQ135 element](../chips/mq135.en.md) | [LM393](../chips/lm393.en.md)
 
 ## Role
 
@@ -32,8 +32,9 @@ AO + potentiometer -> LM393 -> DO
 ## Firmware Mapping
 
 - `hal::readAdc1Channel(4)` samples MQ135.
-- Threshold profiles use raw ADC counts.
-- JSON field: `mq135Raw`.
+- Board B uses five adjustable raw-ADC air warning levels; the default level shown as `3/5` is `2200`.
+- PB0 can select MQ135 on the monitor threshold page, and PB1 cycles `thresholdAirLevel` through `0..4`.
+- JSON fields: `mq135Raw`, `thresholdAirLevel`, `thresholdAirWarn`.
 
 ## Test And Calibration
 

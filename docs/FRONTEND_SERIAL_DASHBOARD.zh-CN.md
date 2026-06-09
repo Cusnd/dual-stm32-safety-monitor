@@ -23,7 +23,7 @@ Board A SENSOR --USART3 PB10/PB11--> Board B MONITOR --USART1 PA9/PA10 + USB-UAR
 同一位置会紧跟一行 JSON：
 
 ```json
-{"type":"sensor","schemaVersion":2,"seq":31,"tickMs":123456,"tempC":26,"humidityPct":54,"mq135Raw":1020,"mq2Raw":860,"rainRaw":980,"thermRaw":1660,"thermC10":325,"rainWet":0,"thermHot":0,"flame":0,"status":0,"alarm":"normal","thresholdProfile":0,"mute":0,"flashReady":1,"flashRecords":42,"externalRgb":0}
+{"type":"sensor","schemaVersion":2,"seq":31,"tickMs":123456,"tempC":26,"humidityPct":54,"mq135Raw":1020,"mq2Raw":860,"rainRaw":980,"thermRaw":1660,"thermC10":325,"rainWet":0,"thermHot":0,"flame":0,"status":0,"alarm":"normal","thresholdProfile":0,"selectedThresholdSensor":0,"thresholdAirLevel":2,"thresholdSmokeLevel":2,"thresholdRainLevel":2,"thresholdThermLevel":2,"thresholdAirWarn":2200,"thresholdSmokeWarn":1800,"thresholdSmokeDanger":2800,"thresholdRainWet":1400,"thresholdThermWarnC10":450,"thresholdThermDangerC10":700,"mute":0,"flashReady":1,"flashRecords":42,"externalRgb":0}
 ```
 
 字段说明：
@@ -44,13 +44,17 @@ Board A SENSOR --USART3 PB10/PB11--> Board B MONITOR --USART1 PA9/PA10 + USB-UAR
 | `flame` | `1` 表示检测到火焰 |
 | `status` | `bit0=DHT11异常`，`bit1=热敏DO高温`，`bit2=雨量触发`，`bit3=热敏ADC异常` |
 | `alarm` | `normal`、`warn`、`danger` 或 `node_lost` |
-| `thresholdProfile` | K2 长按切换的阈值档位 |
+| `thresholdProfile` | legacy 兼容档位：`0` 全默认，`1` 全旧灵敏，`2` 全旧宽松，`255` 混合/自定义 |
+| `selectedThresholdSensor` | 当前调节项：`0=MQ135`、`1=MQ2`、`2=RAIN`、`3=THERM` |
+| `thresholdAirLevel`、`thresholdSmokeLevel`、`thresholdRainLevel`、`thresholdThermLevel` | 逐传感器档位值 `0..4`；OLED 和文档显示为 `1/5..5/5` |
+| `thresholdAirWarn`、`thresholdSmokeWarn`、`thresholdSmokeDanger`、`thresholdRainWet` | 当前实际 ADC 阈值 |
+| `thresholdThermWarnC10`、`thresholdThermDangerC10` | 当前热敏阈值，单位 0.1°C |
 | `mute` | 蜂鸣器是否处于 K2 短按静音窗口 |
 | `flashReady` | 板 B 是否检测到可用 W25Q64 |
 | `flashRecords` | W25Q64 环形日志累计记录数，v2 字段 |
 | `externalRgb` | 当前固件仍会输出的 legacy placeholder；看板不要求该字段，也不代表 WS2813/RGB 是现役输出 |
 
-前端 parser 同时兼容 v1/v2：没有 `schemaVersion` 的旧 JSON Lines 会按 v1 解析，新字段显示为 `--`；v2 数据则要求雨量、热敏和 Flash 记录数字段齐全。`externalRgb` 之类 placeholder 可被前端忽略。
+前端 parser 同时兼容 v1/v2：没有 `schemaVersion` 的旧 JSON Lines 会按 v1 解析，新字段显示为 `--`；v2 数据则要求雨量、热敏和 Flash 记录数字段齐全。新阈值字段为兼容旧日志保持可选；存在时看板分析优先使用实际阈值，不存在时回退到 `thresholdProfile`。`externalRgb` 之类 placeholder 可被前端忽略。
 
 ## 前端运行
 
@@ -72,7 +76,7 @@ http://localhost:5173
 ## 页面行为
 
 - 页面只解析以 `{` 开头的 JSON Lines，自动忽略 `[MONITOR]`、`[SENSOR]` 等普通日志。
-- 首页显示温度、湿度、MQ135、MQ2、雨量、热敏温度、火焰状态、综合告警、阈值档位、静音、Flash 状态和 Flash 记录数。
+- 首页显示温度、湿度、MQ135、MQ2、雨量、热敏温度、火焰状态和综合告警；运行细节面板显示当前调节传感器、四个阈值档位、实际阈值、静音、Flash 状态和 Flash 记录数。
 - 趋势图保留最近 80 条有效传感器记录，包含 ECharts 图例、tooltip、缩放、传感器选中高亮和最近历史值；旧 v1 数据缺少的新曲线会自动跳过。
 - 若超过 3 秒没有收到有效 JSON，页面会显示“数据已超时”，但保留最后一次有效值。
 - “开始模拟”会按串口节奏逐行回放 `frontend/fixtures/sample-serial.log`，和真实 Web Serial 使用同一条解析链路。

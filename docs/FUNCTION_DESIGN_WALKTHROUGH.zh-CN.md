@@ -2,7 +2,7 @@
 
 [中文 README](../README.zh-CN.md) | [English](FUNCTION_DESIGN_WALKTHROUGH.en.md) | [函数说明](FUNCTION_GUIDE.zh-CN.md) | [项目结构](PROJECT_STRUCTURE.zh-CN.md)
 
-这份 walkthrough 说明当前后端如何作为一个完整双板系统工作。内容对应当前 CMake 构建：SENSOR 采集、MONITOR 流式解码、OLED、蜂鸣器、按键、可选 W25Q64 记录和 Web Serial JSON 输出。
+这份 walkthrough 说明当前后端如何作为一个完整双板系统工作。内容对应当前 CMake 构建：SENSOR 采集、MONITOR 流式解码、OLED、蜂鸣器、板载/外接按键、可选 W25Q64 记录和 Web Serial JSON 输出。
 
 ## 系统流程
 
@@ -22,14 +22,14 @@ flowchart LR
     M1["FrameStreamDecoder::push()"]
     M2["evaluateAlarm()"]
     M3["formatMonitorDisplay()"]
-    M4["蜂鸣器 + OLED + 按键"]
+    M4["蜂鸣器 + OLED + K1/K2 + PB0/PB1"]
     M5["W25q64FlashLogger::process()"]
     M6["printFrontendJson()"]
   end
 
   subgraph Web["浏览器看板"]
-    W1["parser.js schema v2"]
-    W2["analysis.js + AI/本地规则"]
+    W1["parser.ts schema v2"]
+    W2["analysis.ts + AI/本地规则"]
     W3["i18n UI 和事件日志"]
   end
 
@@ -119,6 +119,19 @@ flowchart TD
 
 K2 短按会设置 `mute_until_ms = now + mute_time_ms`。静音只影响蜂鸣器；报警状态、OLED、JSON 和 Flash 记录仍反映真实风险状态。
 
+## 阈值模型
+
+板 B 用 `ThresholdLevels` 保存四个独立阈值档位：MQ135 空气、MQ2 烟雾、雨量和热敏。固件内部用 `0..4` 表示五档，OLED 和人读文档显示为 `1/5..5/5`。档位 2 是上电默认值，保持旧默认阈值行为。
+
+| 传感器 | 档位 2 默认值 | JSON 档位字段 | JSON 实际阈值字段 |
+|---|---|---|---|
+| MQ135 | `air_warn=2200` | `thresholdAirLevel` | `thresholdAirWarn` |
+| MQ2 | `smoke_warn=1800`、`smoke_danger=2800` | `thresholdSmokeLevel` | `thresholdSmokeWarn`、`thresholdSmokeDanger` |
+| 雨量 | `rain_wet=1400` | `thresholdRainLevel` | `thresholdRainWet` |
+| 热敏 | `therm_warn=45.0C`、`therm_danger=70.0C` | `thresholdThermLevel` | `thresholdThermWarnC10`、`thresholdThermDangerC10` |
+
+`thresholdsFromLevels()` 把四个档位转换成当前 `AlarmThresholds`。为了兼容旧看板和旧日志，固件仍输出 `thresholdProfile`：`0` 表示全默认，`1` 表示全旧灵敏档，`2` 表示全旧宽松档，`255` 表示混合/自定义。
+
 ## OLED 与按键
 
 `DisplayFormatter` 把 OLED 文本构造从 MONITOR 主循环中拆出来。
@@ -126,18 +139,18 @@ K2 短按会设置 `mute_until_ms = now + mute_time_ms`。静音只影响蜂鸣�
 | 页面 | 内容 |
 |---|---|
 | Page 0 | 状态标题、DHT11 温湿度、MQ135/MQ2、雨量/热敏 |
-| Page 1 | 阈值档位、预警/危险阈值、序号、Flash 是否存在、Flash 记录数 |
+| Page 1 | 当前调节传感器、`1/5..5/5` 档位、实际阈值、A/M/R/T 档位摘要、序号、Flash 是否存在、Flash 记录数 |
 
-K1 在 page 0/page 1 之间切换。K2 短按让蜂鸣器静音 60 秒。K2 长按循环切换 `App/Config.hpp` 中的 `threshold_profiles`。
+K1 在 page 0/page 1 之间切换。K2 短按让蜂鸣器静音 60 秒。PB0 是外接低有效按键，使用内部上拉，用来循环选择 MQ135、MQ2、雨量、热敏。PB1 是另一个外接低有效按键，用来让当前传感器在五个阈值档位中循环。按下任一外接阈值键会自动显示 Page 1。
 
 ## 可选 W25Q64 记录
 
-记录器是可选的。如果 JEDEC ID 不匹配支持的 W25Q64 兼容器件，`present()` 返回 false，MONITOR 会继续运行但不记录。
+记录器是可选的。`W25q64FlashLogger::init()` 会调用 `MX_SPI2_Init()`，通过 `PB13/PB14/PB15` 上的 HAL SPI 和 `PB12` GPIO CS 读取 JEDEC ID。如果 ID 不匹配支持的 W25Q64 兼容器件，`present()` 返回 false，MONITOR 会继续运行但不记录。
 
 | 区域 | 格式 |
 |---|---|
 | Sector 0 | 16 字节游标元数据，包含 magic、version、log address、record count、CRC |
-| Sector 1 到末尾 | 32 字节环形记录，包含帧数据、报警状态、tick、档位、静音标志、记录计数、CRC |
+| Sector 1 到末尾 | 32 字节环形记录，包含帧数据、报警状态、tick、四个压缩阈值档位与静音位、记录计数、CRC |
 
 当报警状态变化或周期记录间隔到期时，会调度一条记录。只有下一条环形写入到达扇区边界时，logger 才擦除对应扇区。
 
@@ -164,6 +177,17 @@ K1 在 page 0/page 1 之间切换。K2 短按让蜂鸣器静音 60 秒。K2 长�
   "status": 0,
   "alarm": "normal",
   "thresholdProfile": 0,
+  "selectedThresholdSensor": 0,
+  "thresholdAirLevel": 2,
+  "thresholdSmokeLevel": 2,
+  "thresholdRainLevel": 2,
+  "thresholdThermLevel": 2,
+  "thresholdAirWarn": 2200,
+  "thresholdSmokeWarn": 1800,
+  "thresholdSmokeDanger": 2800,
+  "thresholdRainWet": 1400,
+  "thresholdThermWarnC10": 450,
+  "thresholdThermDangerC10": 700,
   "mute": 0,
   "flashReady": 1,
   "flashRecords": 42,
@@ -171,7 +195,7 @@ K1 在 page 0/page 1 之间切换。K2 短按让蜂鸣器静音 60 秒。K2 长�
 }
 ```
 
-前端 parser 会兼容旧 schema v1 记录，并把雨量/热敏/Flash 记录数扩展字段填为 `null` 或 `0`。schema v2 记录必须包含扩展字段。`externalRgb` 是 legacy placeholder，当前 JSON 输出中可能出现，但它不是看板必需字段，也不表示当前 CMake 构建会驱动 WS2813/RGB 硬件。看板超过 `STALE_AFTER_MS` 没有收到新帧后会标记数据超时，并按节点离线风险显示，即使最后一行 JSON 仍是 `normal`。
+前端 parser 会兼容旧 schema v1 记录，并把雨量/热敏/Flash 记录数扩展字段填为 `null` 或 `0`。schema v2 记录必须包含 v2 扩展字段。新阈值字段为了兼容旧日志保持可选；存在时本地分析优先使用实际阈值，不存在时回退到 `thresholdProfile`。`selectedThresholdSensor` 映射为 `0=MQ135`、`1=MQ2`、`2=RAIN`、`3=THERM`。`externalRgb` 是 legacy placeholder，当前 JSON 输出中可能出现，但它不是看板必需字段，也不表示当前 CMake 构建会驱动 WS2813/RGB 硬件。看板超过 `STALE_AFTER_MS` 没有收到新帧后会标记数据超时，并按节点离线风险显示，即使最后一行 JSON 仍是 `normal`。
 
 ## 故障处理
 

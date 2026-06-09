@@ -1,6 +1,6 @@
 # Module Reference
 
-[README](../README.md) | [中文](MODULE_REFERENCE.zh-CN.md) | [Hardware index](hardware/index.en.md) | [Wiring](../WIRING.md)
+[README](../README.md) | [Chinese](MODULE_REFERENCE.zh-CN.md) | [Hardware index](hardware/index.en.md) | [Wiring](../WIRING.md)
 
 This document is now the module-level index. Detailed per-module notes live under `docs/hardware/modules/`.
 
@@ -16,6 +16,7 @@ This document is now the module-level index. Detailed per-module notes live unde
 | Flame sensor | SENSOR | `DO -> PB13` | [Flame sensor module](hardware/modules/flame-sensor-module.en.md) |
 | SSD1306 OLED | MONITOR | `SCL/SDA -> PB6/PB7` | [OLED module](hardware/modules/oled-ssd1306-module.en.md) |
 | Active buzzer | MONITOR | `SIG -> PB8` | [Active buzzer module](hardware/modules/active-buzzer-module.en.md) |
+| External threshold keys | MONITOR | `PB0` select sensor, `PB1` change level, active-low to GND | [Wiring](../WIRING.md) |
 | W25Q64 | MONITOR | `CS/SCK/MISO/MOSI -> PB12/PB13/PB14/PB15` | [W25Q64 module](hardware/modules/w25q64-module.en.md) |
 | WS2813E RGB | Legacy expansion | `DIN -> PA6/TIM3_CH1` in old demos | [WS2813E RGB module](hardware/modules/ws2813e-rgb-module.en.md) |
 | USART3 link | Both | `PB10/PB11` crossed | [USART3 board link](hardware/modules/usart3-board-link.en.md) |

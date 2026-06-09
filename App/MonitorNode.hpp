@@ -20,8 +20,19 @@ public:
   void run();
 
 private:
+  struct DebouncedButton
+  {
+    uint8_t raw;
+    uint8_t stable;
+    uint32_t changed_ms;
+  };
+
   void processRx(uint32_t now);
   void updateButtons(uint32_t now);
+  uint8_t pressedEdge(DebouncedButton &button, uint8_t raw_pressed, uint32_t now);
+  uint8_t &selectedThresholdLevel();
+  uint8_t selectedThresholdLevel() const;
+  const char *selectedThresholdName() const;
   void updateAlarm(const AlarmEvaluation &alarm, uint32_t now);
   void updateDisplay(const AlarmEvaluation &alarm);
   void printFrontendJson(const SensorFrame &frame, const AlarmEvaluation &alarm) const;
@@ -35,11 +46,14 @@ private:
   uint32_t last_rx_ms_;
   uint8_t have_rx_;
   uint8_t page_;
-  uint8_t threshold_profile_;
+  ThresholdLevels threshold_levels_;
+  uint8_t selected_threshold_sensor_;
   uint32_t mute_until_ms_;
   uint8_t k1_last_;
   uint8_t k2_last_;
   uint32_t k2_down_ms_;
+  DebouncedButton threshold_select_button_;
+  DebouncedButton threshold_level_button_;
   uint32_t last_ui_ms_;
   uint32_t last_alarm_ms_;
   uint32_t last_log_ms_;

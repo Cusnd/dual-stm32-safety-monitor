@@ -1,6 +1,6 @@
 # CLion + CMake Guide
 
-[English README](../README.md) | [中文](CLION_CMAKE_GUIDE.zh-CN.md) | [Project Structure](PROJECT_STRUCTURE.en.md) | [Board And Chip Reference](BOARD_AND_CHIP_REFERENCE.en.md) | [Module Reference](MODULE_REFERENCE.en.md)
+[English README](../README.md) | [Chinese](CLION_CMAKE_GUIDE.zh-CN.md) | [Project Structure](PROJECT_STRUCTURE.en.md) | [Board And Chip Reference](BOARD_AND_CHIP_REFERENCE.en.md) | [Module Reference](MODULE_REFERENCE.en.md)
 
 The primary workflow for this repository is **CLion + CMake Presets + Ninja + ARM GCC**. Do not use `MDK-ARM/` as the main project entry point; it is kept only as reference material.
 
@@ -93,7 +93,7 @@ cmake --build --preset MonitorDebug
 | `CMakePresets.json` | Provides CLion and command-line profiles such as `SensorDebug` and `MonitorDebug` |
 | `CMakeLists.txt` | Defines the firmware target, role selection, output names, and HEX/BIN generation |
 | `cmake/gcc-arm-none-eabi.cmake` | Selects ARM GCC, Cortex-M3 flags, and the linker script |
-| `cmake/stm32cubemx/CMakeLists.txt` | Includes CubeMX-generated sources, HAL, and CMSIS headers |
+| `cmake/stm32cubemx/CMakeLists.txt` | Includes CubeMX-generated sources, HAL, CMSIS headers, SPI2 init, and `stm32f1xx_hal_spi.c` |
 | `STM32F103XX_FLASH.ld` | Defines STM32F103C8T6 memory layout: 64 KB Flash and 20 KB RAM |
 
 ## 6. How The Role Macro Works
@@ -216,6 +216,7 @@ ST-LINK NRST -> NRST
 | The generated image behaves as the monitor, not the sensor | `Debug` or `MonitorDebug` was selected | Board A must use `SensorDebug` |
 | Board B stays in `NODE LOST` | Board A is not running SENSOR firmware, or USART3 wiring is wrong | Flash Board A with `Env-Monitor_sensor.hex`, Board B with `Env-Monitor_monitor.hex` |
 | OLED stays blank | Firmware was built but not flashed, or OLED wiring/power is wrong | Flash the monitor firmware and check `PB6/PB7/3V3/GND` |
+| Board B prints `flash=none` | W25Q64 was not detected over SPI2 | Check `PB12` CS, `PB13/PB14/PB15` SPI2 wiring, 3.3 V power, common GND, and WP/HOLD pull-ups |
 | Manually typed CMake command has a toolchain path issue | Windows path quoting/backslash issue | Prefer CLion presets or `cmake --preset SensorDebug` |
 
 ## 10. Keil Is Not Required

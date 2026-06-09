@@ -32,8 +32,9 @@ SIG + 电位器 -> 可选 LM393 DO
 ## 固件映射
 
 - `hal::readAdc1Channel(6)` 采样雨量。
-- 默认湿态阈值从原始值 `1400` 起步。
-- JSON 字段：`rainRaw`、`rainWet`；状态位：`bit2`。
+- 板 B 使用 5 档可调湿态阈值；默认显示为 `3/5`，原始值为 `1400`。
+- PB0 可在 MONITOR 阈值页选择雨量，PB1 让 `thresholdRainLevel` 在 `0..4` 间循环。
+- JSON 字段：`rainRaw`、`rainWet`、`thresholdRainLevel`、`thresholdRainWet`；状态位：`bit2`。
 
 ## 标定
 
