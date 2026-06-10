@@ -2,6 +2,8 @@ assets/
 build/
 cmake-build-*/
 slides/
+docs/learning/
+docs/presentation/
 tmp/
 frontend/node_modules/
 frontend/dist/
